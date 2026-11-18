@@ -1,0 +1,105 @@
+/* Shared look of the report and slides, after the "Rapport A4 professionnel Bleu Moderne" template:
+   navy and sage block bars, cream divider pages, wide letter-spaced headings, Poppins body. */
+
+:root {
+  --navy: #0b4a6f;
+  --navy-deep: #073a58;
+  --sage: #8fb8b0;
+  --sage-light: #d7e6e2;
+  --cream: #f1ebe3;
+  --ink: #173b57;
+  --muted: #5d7385;
+  --rule: #dcd5cb;
+  --amber: #d99a2b;
+  --red: #c2412d;
+  --display: "Archivo Variable", "Archivo", sans-serif;
+  --body: "Poppins", sans-serif;
+  --mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body { font-family: var(--body); color: var(--ink); }
+
+/* ---- Template elements -------------------------------------------------------------- */
+
+/* Row of six alternating navy/sage blocks across the top or bottom edge. */
+.bars { position: absolute; left: 0; right: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
+.bars span:nth-child(odd) { background: var(--navy); }
+.bars span:nth-child(even) { background: var(--sage); }
+.bars.top { top: 0; }
+.bars.bottom { bottom: 0; }
+
+.display {
+  font-family: var(--display);
+  font-stretch: 125%;
+  font-weight: 800;
+  color: var(--navy);
+  text-transform: uppercase;
+  line-height: 0.95;
+}
+
+/* Small, widely spaced uppercase labels ("INTRODUCTION", "CONTEXTE" in the template). */
+.label-strong {
+  font-family: var(--display);
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--navy-deep);
+}
+.label-light {
+  font-family: var(--display);
+  font-stretch: 112%;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+
+/* Title running bottom-to-top along the right edge of divider pages. */
+.vertical-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.cream { background: var(--cream); }
+
+/* ---- Content ------------------------------------------------------------------------ */
+
+p { line-height: 1.55; }
+strong { font-weight: 600; color: var(--navy-deep); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+p code, li code { background: var(--cream); padding: 0.05em 0.35em; border-radius: 3px; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 0.86em; }
+table.data th {
+  text-align: left; font-weight: 600; color: var(--navy); border-bottom: 2px solid var(--navy);
+  padding: 0.45em 0.6em; font-size: 0.85em; letter-spacing: 0.06em; text-transform: uppercase;
+}
+table.data td { border-bottom: 1px solid var(--rule); padding: 0.4em 0.6em; vertical-align: top; }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data tr.highlight td { background: #fbf1dc; }
+
+.panel { background: var(--sage-light); border-radius: 10px; padding: 1em 1.2em; }
+.panel.cream { background: var(--cream); }
+
+.figure img, .figure svg { display: block; width: 100%; height: auto; }
+.figure img { border-radius: 8px; border: 1px solid var(--rule); }
+.caption { font-size: 0.78em; color: var(--muted); margin-top: 0.5em; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8em; }
+.kpi { background: var(--cream); border-radius: 10px; padding: 0.8em 1em; }
+.kpi .value { font-family: var(--display); font-stretch: 125%; font-weight: 800; color: var(--navy); font-size: 1.5em; }
+.kpi .name { font-size: 0.72em; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+
+pre.code {
+  font-family: var(--mono); font-size: 0.75em; line-height: 1.5; background: #0f2c40; color: #e5eef3;
+  border-radius: 8px; padding: 0.9em 1.1em; white-space: pre-wrap; word-break: break-word;
+}
+
+ul.clean { list-style: none; }
+ul.clean li { padding-left: 1.2em; position: relative; margin: 0.35em 0; line-height: 1.5; }
+ul.clean li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 0.5em; height: 0.5em; background: var(--sage); }

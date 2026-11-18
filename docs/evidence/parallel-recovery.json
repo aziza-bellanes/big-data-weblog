@@ -1,0 +1,80 @@
+{
+  "run_id": "20261117T152405Z",
+  "job": "6aa8cfaa19bd",
+  "samples": [
+    {
+      "label": "before",
+      "at": 1794929045.8544168,
+      "produced": 200000,
+      "lag": 0
+    },
+    {
+      "label": "writer paused",
+      "at": 1794929071.115304,
+      "produced": 250000,
+      "lag": 50794
+    },
+    {
+      "label": "writer resumed",
+      "at": 1794929091.7407818,
+      "produced": 260000,
+      "lag": 0
+    }
+  ],
+  "scenario": "kafka-writer-outage",
+  "checks": {
+    "kafka kept accepting events while the writer was down": true,
+    "the lag grew while the writer was down": true,
+    "the producer job finished": true,
+    "the lag drained to zero": true,
+    "every branch matches its source": true
+  },
+  "verification": {
+    "run_id": "20261117T152451Z",
+    "observed_at": 1794929091.7448325,
+    "source": "closed HDFS files, checkpoints and MySQL",
+    "flume": {
+      "input_lines": 200000,
+      "closed_hdfs_lines": 200000,
+      "malformed": 4,
+      "content_matches": true
+    },
+    "kafka": {
+      "acknowledged_events": 260000,
+      "hdfs_physical_rows": 260000,
+      "unique_event_ids": 260000,
+      "duplicates": 0,
+      "missing_event_ids": 0,
+      "malformed_physical_rows": 4,
+      "consumer_lag": 0,
+      "offsets": [
+        {
+          "partition": 0,
+          "committed": 86759,
+          "end": 86759,
+          "lag": 0
+        },
+        {
+          "partition": 1,
+          "committed": 86267,
+          "end": 86267,
+          "lag": 0
+        },
+        {
+          "partition": 2,
+          "committed": 86974,
+          "end": 86974,
+          "lag": 0
+        }
+      ]
+    },
+    "sqoop": {
+      "mysql_rows": 21,
+      "hdfs_rows": 21,
+      "content_matches": true
+    },
+    "errors": [],
+    "status": "pass"
+  },
+  "status": "PASS"
+}

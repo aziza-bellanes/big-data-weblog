@@ -1,0 +1,31 @@
+{
+  "run_id": "20261117T180435Z",
+  "scenario": "sequential-writer-outage",
+  "job": "df933c570261",
+  "samples": [
+    {
+      "at": 1794938675.3532546,
+      "replayed": 200000,
+      "lag": 0
+    },
+    {
+      "at": 1794938735.5701807,
+      "replayed": 319800,
+      "lag": 110200
+    },
+    {
+      "at": 1794938821.5235186,
+      "replayed": 320000,
+      "lag": 0
+    }
+  ],
+  "checks": {
+    "source continued during outage": true,
+    "Kafka lag grew during outage": true,
+    "lag drained to zero": true,
+    "replay and HDFS closure completed": true,
+    "source and HDFS counts match": true
+  },
+  "counts_output": "18:07:01 [INFO]  architecture        : A \u00b7 Sequential\n18:07:01 [INFO]  lines in source log : 320000\n18:07:01 [INFO]  lines in HDFS       : 320000 (/data/weblogs)\n18:07:01 [INFO]  OK: no lines lost\n",
+  "status": "PASS"
+}
