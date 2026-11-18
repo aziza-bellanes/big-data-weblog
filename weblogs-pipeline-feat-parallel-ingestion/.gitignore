@@ -1,0 +1,28 @@
+# Datasets are downloaded by scripts/get-data.sh, never committed.
+data/*
+!data/raw/
+data/raw/*
+!data/raw/.gitkeep
+
+.env
+__pycache__/
+*.pyc
+*.part
+
+# Local working files
+*.pdf
+# The generated report and slides are deliverables.
+!docs/report.pdf
+!docs/slides.pdf
+!docs/guide.pdf
+.idea/
+.vscode/
+
+# Always tracked, even when a global gitignore excludes them.
+!docs/build/
+!package-lock.json
+
+node_modules/
+.next/
+*.tsbuildinfo
+artifacts/

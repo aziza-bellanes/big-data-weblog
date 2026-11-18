@@ -1,0 +1,21 @@
+# Invoked by make; mount at the host path so nested Compose commands resolve binds.
+services:
+  docs:
+    build: ./docs/build
+    profiles: [tools]
+    working_dir: ${PROJECT_DIR}/docs/build
+    volumes:
+      - ${PROJECT_DIR}:${PROJECT_DIR}
+      - docs-node-modules:${PROJECT_DIR}/docs/build/node_modules
+      - docs-npm-cache:/root/.npm
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_HOST_PORT: 3306
+      HDFS_HTTP_URL: http://hadoop:9870
+      YARN_HTTP_URL: http://hadoop:8088
+      DASHBOARD_URL: http://dashboard:3000
+    entrypoint: [bash, -euc]
+volumes:
+  docs-node-modules:
+  docs-npm-cache:

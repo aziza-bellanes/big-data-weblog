@@ -1,0 +1,62 @@
+{
+  "observed_at": 1794942202.234692,
+  "architecture": "sequential",
+  "source": "MySQL weblogs result tables after Hive/Sqoop export",
+  "checks": [
+    {
+      "name": "canonical_requests",
+      "expected": 3461613,
+      "actual": 3461613,
+      "passed": true
+    },
+    {
+      "name": "malformed",
+      "expected": 33,
+      "actual": 33,
+      "passed": true
+    },
+    {
+      "name": "top_resource",
+      "expected": "/images/NASA-logosmall.gif",
+      "actual": "/images/NASA-logosmall.gif",
+      "passed": true
+    },
+    {
+      "name": "top_resource_hits",
+      "expected": 208798,
+      "actual": 208798,
+      "passed": true
+    },
+    {
+      "name": "404",
+      "expected": 20871,
+      "actual": 20871,
+      "passed": true
+    },
+    {
+      "name": "500",
+      "expected": 65,
+      "actual": 65,
+      "passed": true
+    },
+    {
+      "name": "top_host",
+      "expected": "piweba3y.prodigy.com",
+      "actual": "piweba3y.prodigy.com",
+      "passed": true
+    },
+    {
+      "name": "top_host_hits",
+      "expected": 21987,
+      "actual": 21987,
+      "passed": true
+    },
+    {
+      "name": "peak_hour",
+      "expected": 15,
+      "actual": 15,
+      "passed": true
+    }
+  ],
+  "status": "pass"
+}

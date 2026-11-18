@@ -1,0 +1,47 @@
+{
+  "run_id": "20261117T184727Z",
+  "observed_at": 1794941247.796868,
+  "source": "closed HDFS files, checkpoints and MySQL",
+  "flume": {
+    "input_lines": 3461613,
+    "closed_hdfs_lines": 3461613,
+    "malformed": 33,
+    "content_matches": true
+  },
+  "kafka": {
+    "acknowledged_events": 3461613,
+    "hdfs_physical_rows": 3461613,
+    "unique_event_ids": 3461613,
+    "duplicates": 0,
+    "missing_event_ids": 0,
+    "malformed_physical_rows": 33,
+    "consumer_lag": 0,
+    "offsets": [
+      {
+        "partition": 0,
+        "committed": 1376105,
+        "end": 1376105,
+        "lag": 0
+      },
+      {
+        "partition": 1,
+        "committed": 1370048,
+        "end": 1370048,
+        "lag": 0
+      },
+      {
+        "partition": 2,
+        "committed": 1375460,
+        "end": 1375460,
+        "lag": 0
+      }
+    ]
+  },
+  "sqoop": {
+    "mysql_rows": 21,
+    "hdfs_rows": 21,
+    "content_matches": true
+  },
+  "errors": [],
+  "status": "pass"
+}

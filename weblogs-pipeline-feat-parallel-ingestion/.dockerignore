@@ -1,0 +1,9 @@
+# The bigdata image only needs config/, docker/ and scripts/lib/; keep the build context small.
+.git
+data
+docs
+dashboard
+**/node_modules
+**/.next
+*.pdf
+*.md

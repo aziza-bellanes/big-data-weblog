@@ -1,0 +1,31 @@
+{
+  "default": "parallel",
+  "architectures": {
+    "parallel": {
+      "label": "B · Parallel",
+      "summary": "Flume, Kafka and Sqoop ingest independently into HDFS",
+      "liveDir": "/data/live/parallel",
+      "rawDir": "/data/nasa/raw/flume",
+      "eventsDir": "/data/nasa/streaming/kafka",
+      "referenceDir": "/data/nasa/reference/sqoop/status_codes",
+      "resultsRoot": "/data/nasa/results",
+      "hiveDb": "weblogs_parallel",
+      "mysqlDb": "weblogs_parallel",
+      "kafkaTopic": "web-events",
+      "consumerGroup": "kafka-hdfs-writer"
+    },
+    "sequential": {
+      "label": "A · Sequential",
+      "summary": "Flume to Kafka to Flume, one chain into HDFS",
+      "liveDir": "/data/live/sequential",
+      "rawDir": "/data/weblogs",
+      "eventsDir": null,
+      "referenceDir": "/data/reference/status_codes",
+      "resultsRoot": "/data/results",
+      "hiveDb": "weblogs",
+      "mysqlDb": "weblogs",
+      "kafkaTopic": "web-logs",
+      "consumerGroup": "flume-hdfs-writer"
+    }
+  }
+}
