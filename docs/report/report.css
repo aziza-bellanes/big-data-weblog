@@ -1,0 +1,59 @@
+/* A4 report pages. Proportions follow the template: 9 mm block bars, 20 mm side margins. */
+
+@page { size: A4; margin: 0; }
+
+.page {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  overflow: hidden;
+  page-break-after: always;
+  background: #fff;
+  font-size: 10.5pt;
+}
+.page.cream { background: var(--cream); }
+.page:last-child { page-break-after: auto; }
+.page .bars { height: 9mm; }
+
+.content { position: absolute; inset: 27mm 20mm 20mm 20mm; display: flex; flex-direction: column; gap: 5mm; }
+.content > h2.label-strong { font-size: 13pt; margin-bottom: 1mm; }
+.content h3.label-light { font-size: 9.5pt; margin-top: 2mm; }
+.content h3.label-strong { font-size: 9pt; margin-top: 2mm; }
+.content p, .content li { color: var(--ink); }
+.narrow { max-width: 150mm; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+
+.page-number { position: absolute; bottom: 12mm; right: 20mm; font-size: 8pt; color: var(--muted); letter-spacing: 0.2em; }
+
+/* Cover */
+.cover { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.cover .brand { margin-top: 112mm; font-size: 13pt; }
+.cover h1 { font-size: 40pt; margin-top: 7mm; }
+.cover .subtitle { margin-top: 6mm; max-width: 140mm; font-size: 11pt; color: var(--navy); }
+.cover .authors { margin-top: 9mm; font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 13pt; color: var(--navy); }
+.cover .meta { margin-top: 3mm; font-size: 9.5pt; color: var(--muted); }
+.cover .date { position: absolute; bottom: 21mm; left: 0; right: 0; font-family: var(--display); font-stretch: 112%; font-weight: 700; color: var(--navy); }
+
+/* Contents */
+.toc .brand { position: absolute; top: 18mm; left: 18mm; font-size: 12pt; }
+.toc .vertical-title { position: absolute; right: 2mm; top: 4mm; font-size: 80pt; }
+.toc ol { position: absolute; left: 0; bottom: 16mm; list-style: none; display: flex; flex-direction: column; gap: 6.5mm; }
+.toc li { display: flex; align-items: center; gap: 9mm; }
+.toc .num {
+  width: 32mm; height: 18mm; background: var(--navy-deep); color: #c9d3da; display: flex; align-items: center;
+  justify-content: flex-end; padding-right: 3mm; font-family: var(--body); font-weight: 400; font-size: 30pt;
+}
+.toc .entry { font-weight: 500; font-size: 13pt; color: var(--navy); }
+
+/* Section dividers */
+.divider .big-number { position: absolute; left: 10mm; bottom: 14mm; font-size: 105pt; }
+.divider .vertical-title { position: absolute; right: 12mm; top: 8mm; font-size: 46pt; max-height: 230mm; }
+
+/* Closing page */
+.closing .brand { position: absolute; top: 28mm; left: 15mm; font-size: 12pt; }
+.closing .date { position: absolute; top: 28mm; right: 20mm; font-family: var(--display); font-stretch: 112%; font-weight: 700; color: var(--navy); }
+.closing .thanks { position: absolute; bottom: 32mm; left: 0; right: 0; text-align: center; }
+.closing .thanks h1 { font-size: 40pt; }
+.closing .thanks p { margin-top: 3mm; font-family: var(--display); font-stretch: 112%; font-weight: 700; color: var(--navy); }
+
+.quote-mark { font-family: var(--display); font-weight: 900; font-size: 44pt; line-height: 0.6; color: var(--navy); }

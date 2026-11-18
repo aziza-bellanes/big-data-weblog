@@ -1,0 +1,34 @@
+/* Additions for the plain-language guide, on top of the report's page layout. */
+.lead { font-size: 1.08em; line-height: 1.6; }
+
+table.data.compact td, table.data.compact th { padding-top: 0.3em; padding-bottom: 0.3em; }
+
+.tool { margin: 0 0 6mm; padding: 4mm 5mm 3mm; border-radius: 10px; background: var(--cream); break-inside: avoid; }
+.tool header { display: flex; align-items: baseline; gap: 3mm; margin-bottom: 2mm; }
+.tool-number {
+  display: inline-grid; place-items: center; width: 7mm; height: 7mm; border-radius: 2mm; background: var(--navy);
+  color: #fff; font-family: var(--display); font-weight: 800; font-size: 0.85em; transform: translateY(-0.5mm);
+}
+.tool h3 { margin: 0; font-family: var(--display); font-stretch: 125%; font-weight: 800; color: var(--navy);
+  text-transform: uppercase; letter-spacing: 0.04em; font-size: 1.05em; }
+.tool .nickname { color: var(--muted); font-style: italic; }
+.tool p, .tool li { margin-top: 0.25em; margin-bottom: 0.25em; }
+.tool .picture { margin-top: 2mm; padding-top: 2mm; border-top: 1px solid rgba(11, 74, 111, 0.15); font-size: 0.88em;
+  color: var(--muted); }
+
+ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 4mm 0 0; }
+ol.steps li { counter-increment: step; position: relative; padding: 1.2mm 0 1.2mm 10mm; }
+ol.steps li::before {
+  content: counter(step); position: absolute; left: 0; top: 1mm; width: 6.5mm; height: 6.5mm; border-radius: 50%;
+  background: var(--navy); color: #fff; display: grid; place-items: center; font-size: 0.75em; font-weight: 600;
+}
+
+.qa { margin: 0 0 4.5mm; padding: 3.5mm 5mm; border-left: 3px solid var(--sage); background: var(--cream);
+  border-radius: 0 8px 8px 0; break-inside: avoid; }
+.qa .q { margin: 0 0 1mm; font-weight: 600; color: var(--navy); }
+.qa .a { margin: 0; }
+
+/* Screenshots keep their proportions but never push the text below them off the page. */
+.content .figure { min-height: 0; }
+.content .figure img { max-height: 105mm; width: auto; max-width: 100%; object-fit: contain; }
+.content .figure.tall img { max-height: 92mm; }

@@ -1,0 +1,212 @@
+name: weblogs-pipeline
+
+# Settings shared by every container built from docker/bigdata.
+x-bigdata: &bigdata
+  image: weblogs/bigdata:latest
+  pull_policy: never
+  restart: unless-stopped
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    KAFKA_TOPIC: ${KAFKA_TOPIC:-web-logs}
+    REPLAY_RATE: ${REPLAY_RATE:-500}
+    REPLAY_LIMIT: ${REPLAY_LIMIT:-0}
+  volumes:
+    - ./:/opt/project:ro
+
+# Flume agents expose JSON metrics on this port; the agent is healthy once it answers.
+x-flume-healthcheck: &flume-healthcheck
+  test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:34545/metrics"]
+  interval: 10s
+  start_period: 30s
+  retries: 6
+
+services:
+  # ---- Storage and reference data -------------------------------------------
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      retries: 12
+
+  hadoop:
+    <<: *bigdata
+    build:
+      context: .
+      dockerfile: docker/bigdata/Dockerfile
+    pull_policy: build
+    hostname: hadoop
+    command: ["hadoop"]
+    ports:
+      - "127.0.0.1:9870:9870"    # HDFS NameNode UI
+      - "127.0.0.1:8088:8088"    # YARN ResourceManager UI
+      - "127.0.0.1:19888:19888"  # MapReduce job history UI
+    volumes:
+      - ./:/opt/project:ro
+      - hadoop-data:/var/lib/hadoop
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/hadoop.ready"]
+      interval: 10s
+      start_period: 60s
+      retries: 18
+
+  # ---- Messaging -------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    restart: unless-stopped
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      start_period: 20s
+      retries: 12
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      kafka: { condition: service_healthy }
+    restart: "no"
+    command:
+      - kafka-topics
+      - --bootstrap-server=kafka:9092
+      - --create
+      - --if-not-exists
+      - --topic=${KAFKA_TOPIC:-web-logs}
+      - --partitions=3
+      - --replication-factor=1
+
+  # ---- Ingestion -------------------------------------------------------------
+  replayer:
+    <<: *bigdata
+    command: ["replayer"]
+    restart: "no"
+    profiles: [replay]
+    environment:
+      REPLAY_RATE: ${REPLAY_RATE:-500}
+      REPLAY_LIMIT: ${REPLAY_LIMIT:-0}
+    volumes:
+      - ./:/opt/project:ro
+      - ./data/raw:/data/input:ro
+      - live-logs:/data/live
+
+  flume-agent1:
+    <<: *bigdata
+    command: ["flume", "agent1", "/opt/project/config/flume/agent1-log-to-hdfs.conf"]
+    depends_on:
+      hadoop: { condition: service_healthy }
+    volumes:
+      - ./:/opt/project:ro
+      - live-logs:/data/live:ro
+      - flume-agent1-state:/var/lib/flume
+    healthcheck: *flume-healthcheck
+
+  kafka-producer:
+    <<: *bigdata
+    command: ["python3", "/opt/project/scripts/kafka_ingestion.py", "produce"]
+    restart: "no"
+    profiles: [replay]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-web-logs}
+      REPLAY_RATE: ${REPLAY_RATE:-500}
+      REPLAY_LIMIT: ${REPLAY_LIMIT:-0}
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    volumes:
+      - ./:/opt/project:ro
+      - ./data/raw:/data/input:ro
+      - kafka-producer-state:/data/kafka
+
+  kafka-hdfs-writer:
+    <<: *bigdata
+    command: ["python3", "/opt/project/scripts/kafka_ingestion.py", "consume"]
+    healthcheck: *flume-healthcheck
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      hadoop: { condition: service_healthy }
+
+  # ---- Analysis and export ---------------------------------------------------
+  hive:
+    <<: *bigdata
+    command: ["hive"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      hadoop: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:10000:10000"  # HiveServer2 JDBC
+      - "127.0.0.1:10002:10002"  # HiveServer2 UI
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/10000'"]
+      interval: 15s
+      start_period: 90s
+      retries: 20
+
+  client:
+    <<: *bigdata
+    command: ["client"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      hadoop: { condition: service_healthy }
+    volumes:
+      - ./:/opt/project:ro
+      - ./data/raw:/data/input:ro
+      # Read-write so the dashboard can start a replay through the control API.
+      - live-logs:/data/live
+      - kafka-producer-state:/data/kafka
+      - ./artifacts:/opt/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+
+  # ---- Web dashboard -----------------------------------------------------------
+  dashboard:
+    build: ./dashboard
+    image: weblogs/dashboard:latest
+    restart: unless-stopped
+    depends_on:
+      mysql: { condition: service_healthy }
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-web-logs}
+      CONTROL_URL: http://client:8000
+    ports:
+      - "127.0.0.1:${DASHBOARD_HOST_PORT:-3030}:3000"
+    volumes:
+      - live-logs:/data/live:ro
+
+volumes:
+  mysql-data:
+  hadoop-data:
+  zookeeper-data:
+  kafka-data:
+  live-logs:
+  flume-agent1-state:
+  kafka-producer-state:
