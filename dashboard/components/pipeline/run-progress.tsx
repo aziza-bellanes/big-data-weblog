@@ -8,11 +8,10 @@ import type { Job, JobStep, PipelineSnapshot } from "@/lib/types";
 import { ACTION_LABELS } from "./pipeline-context";
 import { JobStatusBadge, StepIcon } from "./job-status";
 
-/** The running or last job of this architecture (its own jobs and comparisons). */
+/** The running or last job. */
 export function latestJob(snapshot: PipelineSnapshot): Job | null {
-  const mine = (job: Job) => job.arch === snapshot.arch || job.action === "compare";
   const control = snapshot.control;
-  return control?.active.find(mine) ?? control?.history.find(mine) ?? null;
+  return control?.active[0] ?? control?.history[0] ?? null;
 }
 
 /** Step-by-step progress of the current job, or a summary of the last one. */
@@ -48,7 +47,7 @@ export function RunProgress({ snapshot, replayRate }: { snapshot: PipelineSnapsh
         <JobStatusBadge status={job.status} />
       </div>
 
-      {job.action === "replay" && job.arch === snapshot.arch && (
+      {job.action === "replay" && (
         <ReplayProgress
           written={snapshot.replay.linesWritten}
           total={control?.datasetLines ?? null}
@@ -59,15 +58,12 @@ export function RunProgress({ snapshot, replayRate }: { snapshot: PipelineSnapsh
 
       <ol className="relative flex flex-col gap-4 before:absolute before:top-3 before:bottom-3 before:left-3.5 before:w-px before:bg-border">
         {job.steps.map((step, index) => (
-          <StepRow key={`${step.arch}-${step.key}-${index}`} step={step} now={now} />
+          <StepRow key={`${step.key}-${index}`} step={step} now={now} />
         ))}
       </ol>
     </div>
   );
 }
-
-// Steps that are measurements of the control API rather than make targets.
-const MEASURED = new Set(["fingerprint", "compare"]);
 
 function StepRow({ step, now }: { step: JobStep; now: number }) {
   const duration = step.startedAt ? formatDuration((step.endedAt ?? now) - step.startedAt) : null;
@@ -79,7 +75,7 @@ function StepRow({ step, now }: { step: JobStep; now: number }) {
           {step.label}
         </p>
         <p className="font-mono text-[0.68rem] text-muted-foreground">
-          {MEASURED.has(step.key) ? "measured by the control API" : `make ${step.key}${step.arch ? ` ARCH=${step.arch}` : ""}`}
+          make {step.key}
         </p>
       </div>
       {duration && <span className="font-mono text-xs tabular-nums text-muted-foreground">{duration}</span>}

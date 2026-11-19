@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Export the Hive result tables of one architecture from HDFS into its MySQL database,
-# replacing previous contents. Usage: ARCH=parallel|sequential export_results.sh
+# Export the Hive result tables from HDFS into the MySQL database,
+# replacing previous contents. Usage: export_results.sh
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../scripts/lib/common.sh"
 arch_env
@@ -53,7 +53,7 @@ export_table() {
         -m 1
 }
 
-log "exporting $ARCH_LABEL results from $RESULTS_ROOT to MySQL $WEBLOGS_DB"
+log "exporting results from $RESULTS_ROOT to MySQL $WEBLOGS_DB"
 for table in "${RESULT_TABLES[@]}"; do
     export_table "$table"
 done

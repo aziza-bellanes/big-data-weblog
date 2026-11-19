@@ -50,8 +50,8 @@ export interface Results {
 
 // ---- Architectures (config/architectures.json) ----
 
-/** A · Sequential (Flume → Kafka → Flume) or B · Parallel (Flume, Kafka and Sqoop side by side). */
-export type ArchName = "parallel" | "sequential";
+/** The one architecture: Flume, Kafka (archive writer and speed layer) and Sqoop side by side. */
+export type ArchName = "parallel";
 
 export interface Architecture {
   name: ArchName;
@@ -59,20 +59,15 @@ export interface Architecture {
   summary: string;
   liveDir: string;
   rawDir: string;
-  eventsDir: string | null;
+  eventsDir: string;
+  speedDir: string | null;
+  speedCheckpoint: string | null;
   referenceDir: string;
   resultsRoot: string;
   hiveDb: string;
   mysqlDb: string;
   kafkaTopic: string;
   consumerGroup: string;
-}
-
-/** What the browser needs to show the architecture switch. */
-export interface ArchitectureChoice {
-  name: ArchName;
-  label: string;
-  summary: string;
 }
 
 // ---- Live pipeline ----
@@ -136,7 +131,7 @@ export interface MysqlStatus {
 // ---- Control API (runs pipeline steps in the client container) ----
 
 export type JobAction =
-  | "replay" | "pipeline" | "counts" | "reset" | "compare"
+  | "replay" | "pipeline" | "counts" | "reset"
   | "hive-tables" | "sqoop-import" | "hive-analysis" | "sqoop-export"
   | "ingest-flume" | "ingest-kafka" | "ingest-sqoop" | "verify-ingestion";
 export type StepStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled" | "skipped";
@@ -168,9 +163,8 @@ export interface IngestionPoint {
 export interface Job {
   id: string;
   action: JobAction;
-  /** Null for a comparison, which runs both. */
   arch: ArchName | null;
-  params: { rate?: number; limit?: number; fresh?: boolean };
+  params: { rate?: number; limit?: number };
   status: JobStatus;
   createdAt: number;
   endedAt: number | null;
@@ -180,14 +174,16 @@ export interface Job {
 }
 
 export interface ControlStatus {
-  /** First running job; `active` lists every running job (A and B can run at once). */
+  /** Write and scheduling readiness; separate from the control service's liveness. */
+  readiness?: { ready: boolean; problems: string[] };
+  /** First running job; `active` lists every running job. */
   current: Job | null;
   active: Job[];
   history: Job[];
   /** Lines in the downloaded dataset, null while still being counted. */
   datasetLines: number | null;
   defaultArch: ArchName;
-  /** A replay started outside the dashboard (make replay) is writing to that architecture. */
+  /** A replay started outside the dashboard (make replay) is writing. */
   replayRunning: Record<ArchName, boolean>;
 }
 
@@ -198,59 +194,101 @@ export interface LogLine {
 
 export interface PipelineSnapshot {
   takenAt: number;
-  arch: ArchName;
   /** Null when the control API (client container) is unreachable. */
   control: ControlStatus | null;
   /** Lines written to the live log. */
   replay: ReplayStatus;
-  /** The Flume agent tailing the live log: A flume-agent1 (to Kafka), B flume-direct (to HDFS). */
+  /** The Flume agent tailing the live log (flume-direct, to HDFS). */
   collector: FlumeAgentStatus;
   kafka: KafkaStatus;
-  /** What writes Kafka's messages to HDFS: A flume-agent2, B the Kafka HDFS writer. */
+  /** The Kafka consumer archiving the JSON events to HDFS (kafka-hdfs-writer). */
   writer: FlumeAgentStatus;
-  /** B only: events the producer published to Kafka and saw acknowledged. */
-  producer: ReplayStatus | null;
+  /** Events the producer published to Kafka and saw acknowledged. */
+  producer: ReplayStatus;
   /** Raw log lines in HDFS, one folder per day. */
   hdfs: HdfsStatus;
-  /** B only: JSON events in HDFS. */
-  events: HdfsStatus | null;
-  /** B only: the status_codes copy imported by its Sqoop branch. */
-  reference: HdfsStatus | null;
+  /** JSON events in HDFS. */
+  events: HdfsStatus;
+  /** Parquet files written by the Spark speed layer. */
+  speedFiles: HdfsStatus | null;
+  /** The Spark speed layer, from its serving tables in MySQL. */
+  spark: SparkStatus;
+  /** The status_codes copy imported by the Sqoop branch. */
+  reference: HdfsStatus;
   yarn: YarnStatus;
   mysql: MysqlStatus;
 }
 
-// ---- Run and comparison records (control API /runs) ----
+// ---- Speed layer (Spark Structured Streaming, serving tables in MySQL) ----
 
-export interface IngestionSummary {
-  lines: number;
-  replaySeconds: number | null;
-  allWrittenSeconds: number | null;
-  allClosedSeconds: number | null;
-  linesPerSecond: number | null;
-  peakKafkaLag: number;
-  raw: { files: number; bytes: number; avgFileBytes: number } | null;
-  events?: { files: number; bytes: number; avgFileBytes: number } | null;
-  eventsProduced?: number;
-  samples?: Omit<IngestionPoint, "arch" | "phase">[];
+export interface SparkStatus {
+  state: StageState;
+  batches: number;
+  events: number;
+  /** Epoch ms of the last micro-batch, null before the first. */
+  lastBatchAt: number | null;
+  /** Event-time minute reached ("1995-07-13 10:42"). */
+  lastMinute: string | null;
 }
 
-export interface ArchRun {
-  ingestion?: IngestionSummary;
-  steps: Record<string, number>;
-  batchSeconds: number | null;
-  results?: Record<string, { rows: number; sha256: string }>;
+export interface SpeedMinute {
+  minute: string;
+  hits: number;
+  clientErrors: number;
+  serverErrors: number;
 }
 
-export interface RunRecord {
-  id: string;
-  kind: "run" | "comparison";
-  action: JobAction;
-  arch: ArchName | null;
-  params: Job["params"];
-  status: JobStatus;
-  createdAt: number;
-  endedAt: number | null;
-  architectures: Partial<Record<ArchName, ArchRun>>;
-  comparison?: { resultsMatch: Record<string, boolean>; allResultsMatch: boolean };
+export type AlertKind = "traffic_spike" | "not_found_burst" | "server_errors" | "host_flood";
+
+export interface SpeedAlert {
+  minute: string;
+  kind: AlertKind;
+  subject: string;
+  value: number;
+  threshold: number;
+}
+
+/** One day, seen by the speed layer and by the batch layer (null when Hive has not run). */
+export interface SpeedDay {
+  day: string;
+  speed: { hits: number; clientErrors: number; serverErrors: number };
+  batch: { hits: number; clientErrors: number; serverErrors: number } | null;
+  match: boolean | null;
+}
+
+export interface SpeedSnapshot {
+  takenAt: number;
+  status: SparkStatus;
+  alertCount: number;
+  /** Latest minutes of event time, oldest first. */
+  minutes: SpeedMinute[];
+  alerts: SpeedAlert[];
+  days: SpeedDay[];
+  /** False until the batch layer has exported hits_per_day. */
+  batchRun: boolean;
+}
+
+/** Flagged minutes of one alert kind, with the worst one. */
+export interface AlertSummary {
+  kind: AlertKind;
+  flagged: number;
+  threshold: number;
+  worstValue: number;
+  worstMinute: string;
+  /** Host of the worst minute for host_flood, '' otherwise. */
+  worstSubject: string;
+}
+
+export interface FloodHost {
+  host: string;
+  flaggedMinutes: number;
+  maxRequests: number;
+}
+
+/** What the Analytics page shows of the speed layer. */
+export interface SpeedAnalytics {
+  alerts: AlertSummary[];
+  floodHosts: FloodHost[];
+  days: SpeedDay[];
+  batchRun: boolean;
 }

@@ -11,23 +11,16 @@ import {
 } from "@/components/ui/chart";
 import { Activity } from "lucide-react";
 import type { Rates, Sample } from "@/hooks/use-pipeline";
-import type { ArchName } from "@/lib/types";
 import { formatCompact, formatInt } from "@/lib/format";
 
-// One series per ingestion stage of each architecture.
-const SERIES = {
-  sequential: {
-    replay: { label: "Replayer", color: "var(--chart-3)" },
-    collector: { label: "Flume 1 → Kafka", color: "var(--chart-1)" },
-    writer: { label: "Kafka → HDFS", color: "var(--chart-2)" },
-  },
-  parallel: {
-    replay: { label: "Replayer", color: "var(--chart-3)" },
-    collector: { label: "Flume → HDFS", color: "var(--chart-1)" },
-    producer: { label: "Producer → Kafka", color: "var(--chart-4)" },
-    writer: { label: "Kafka → HDFS", color: "var(--chart-2)" },
-  },
-} satisfies Record<ArchName, ChartConfig>;
+// One series per ingestion stage.
+const chartConfig = {
+  replay: { label: "Replayer", color: "var(--chart-3)" },
+  collector: { label: "Flume → HDFS", color: "var(--chart-1)" },
+  producer: { label: "Producer → Kafka", color: "var(--chart-4)" },
+  writer: { label: "Kafka → HDFS", color: "var(--chart-2)" },
+  spark: { label: "Kafka → Spark", color: "var(--chart-5)" },
+} satisfies ChartConfig;
 
 const clock = (t: number) =>
   new Date(t).toLocaleTimeString("en-GB", {
@@ -37,8 +30,7 @@ const clock = (t: number) =>
   });
 
 /** Lines per second at each ingestion stage over the last three minutes. */
-export function ThroughputChart({ history, arch }: { history: Sample[]; arch: ArchName }) {
-  const chartConfig: ChartConfig = SERIES[arch];
+export function ThroughputChart({ history }: { history: Sample[] }) {
   const keys = Object.keys(chartConfig) as (keyof Rates)[];
   const flowing = history.some((sample) => keys.some((key) => sample[key] > 0));
   return (
@@ -92,7 +84,7 @@ export function ThroughputChart({ history, arch }: { history: Sample[]; arch: Ar
                 formatter={(value, name) => (
                   <div className="flex w-full justify-between gap-6">
                     <span className="text-muted-foreground">
-                      {chartConfig[String(name)]?.label ?? name}
+                      {chartConfig[name as keyof typeof chartConfig]?.label ?? name}
                     </span>
                     <span className="font-mono tabular-nums">
                       {formatInt(Number(value))}/s

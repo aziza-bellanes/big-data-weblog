@@ -35,7 +35,7 @@ const poppins = localFont({
 
 export const metadata: Metadata = {
   title: { default: "Weblogs pipeline", template: "%s · Weblogs pipeline" },
-  description: "NASA web traffic analytics with Flume, Kafka, HDFS, Hive and Sqoop.",
+  description: "NASA web traffic analytics with Flume, Kafka, Spark, HDFS, Hive and Sqoop.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

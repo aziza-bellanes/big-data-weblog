@@ -1,8 +1,11 @@
 {
   "title": "Web Traffic Analytics Pipeline",
-  "subtitle": "Batch and near-real-time analysis of web server logs with Flume, Kafka, HDFS, Hive and Sqoop",
+  "subtitle": "Batch and real-time analysis of web server logs with Flume, Kafka, Spark, HDFS, Hive and Sqoop",
   "authors": [
-    "Aziza Bellanes"
+    "Aziza Bellanes",
+    "Chayma Benabdallah",
+    "Nada Ben Abdelhafidh",
+    "Montaha Mattoussi"
   ],
   "course": "Big Data",
   "teacher": "Prof. Yamna Sayeb",

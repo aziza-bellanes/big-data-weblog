@@ -31,7 +31,7 @@ def get(name: str | None = None) -> dict:
 # Shell variable names for each setting, exported by `architectures.py env`.
 SHELL_NAMES = {
     "name": "ARCH", "label": "ARCH_LABEL", "liveDir": "LIVE_DIR", "liveLog": "LIVE_LOG",
-    "rawDir": "RAW_DIR", "eventsDir": "EVENTS_DIR", "referenceDir": "REFERENCE_DIR",
+    "rawDir": "RAW_DIR", "eventsDir": "EVENTS_DIR", "speedDir": "SPEED_DIR", "referenceDir": "REFERENCE_DIR",
     "resultsRoot": "RESULTS_ROOT", "hiveDb": "HIVE_DB", "mysqlDb": "WEBLOGS_DB",
     "kafkaTopic": "KAFKA_TOPIC", "consumerGroup": "CONSUMER_GROUP",
 }

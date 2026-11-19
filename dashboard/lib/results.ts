@@ -1,22 +1,21 @@
 import "server-only";
 import { connection } from "next/server";
-import { getArchitecture, selectedArch } from "@/lib/architectures";
+import { getArchitecture } from "@/lib/architectures";
 import { fetchResults } from "@/lib/sources/mysql";
 import type { Architecture, Results } from "@/lib/types";
 
 export interface ArchResults {
   arch: Architecture;
-  /** Null when MySQL is unreachable or the batch pipeline of this architecture has not run. */
+  /** Null when MySQL is unreachable or the batch pipeline has not run. */
   results: Results | null;
 }
 
 /**
- * Results Sqoop exported to the MySQL database of the selected architecture (the switch in
- * the top bar), read on every request.
+ * Results Sqoop exported to the MySQL database, read on every request.
  */
 export async function loadResults(): Promise<ArchResults> {
   await connection();
-  const arch = getArchitecture(await selectedArch());
+  const arch = getArchitecture();
   try {
     const results = await fetchResults(arch.mysqlDb);
     return { arch, results: results.quality ? results : null };

@@ -11,7 +11,7 @@ export default function ExplorerPage() {
         number="05"
         eyebrow="Data explorer"
         title="Inside HDFS"
-        description="A read-only view of the HDFS folders of the selected architecture. Folders show their first 200 entries and files their first 50 lines. The switch in the top bar changes architecture."
+        description="A read-only view of the HDFS folders of the pipeline. Folders show their first 200 entries and files their first 50 lines."
       />
       <PageBody>
         <ExplorerBrowser />

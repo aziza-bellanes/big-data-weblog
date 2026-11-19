@@ -13,7 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatHour, formatInt, formatPct } from "@/lib/format";
 import { loadResults } from "@/lib/results";
-import type { Results } from "@/lib/types";
+import { alertUnit, AlertKindBadge } from "@/components/realtime/alert-kind";
+import { orFallback } from "@/lib/sources/http";
+import { fetchSpeedAnalytics } from "@/lib/sources/mysql";
+import type { Results, SpeedAnalytics } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Analytics" };
 
@@ -23,8 +26,8 @@ export default function AnalyticsPage() {
       <PageHeader
         number="02"
         eyebrow="Analytics"
-        title="The four questions"
-        description="Answers computed by Hive over every line stored in HDFS, then exported to MySQL by Sqoop. Status labels come from the reference table Sqoop imported from MySQL."
+        title="Six questions, two layers"
+        description="Questions 01–04 come from the batch layer (Flume → HDFS → Hive, exported by Sqoop), 05–06 from the speed layer (Kafka → Spark Structured Streaming → MySQL). Status labels come from the reference table Sqoop imported from MySQL."
       />
       <PageBody>
         <Suspense fallback={<Skeleton className="h-[36rem] rounded-xl" />}>
@@ -37,13 +40,13 @@ export default function AnalyticsPage() {
 
 async function AnalyticsResults() {
   const { arch, results } = await loadResults();
-  if (!results) return <EmptyResults arch={arch} />;
+  if (!results) return <EmptyResults />;
   const peak = results.hourly.reduce((best, h) => (h.hits > best.hits ? h : best), results.hourly[0]);
   return (
     <Stagger className="flex flex-col gap-6">
-      <ResultsSource label={arch.label} database={arch.mysqlDb} />
+      <ResultsSource database={arch.mysqlDb} />
       <StaggerItem className="flex flex-col gap-4">
-        <SectionTitle number="01" title="Most visited pages" lead="Images dominate: every HTML page loads the same logos." />
+        <SectionTitle number="01" layer="Batch · Hive" title="Most visited pages" lead="Images dominate: every HTML page loads the same logos." />
         <Section title="Top 10 resources" description="Requests per path, all status codes.">
           <RankedTable labelHeader="Path" rows={results.topPages.map((p) => ({ label: p.path, hits: p.hits }))} />
         </Section>
@@ -52,6 +55,7 @@ async function AnalyticsResults() {
       <StaggerItem className="flex flex-col gap-4">
         <SectionTitle
           number="02"
+          layer="Batch · Hive"
           title="Traffic over time"
           lead={peak ? `Busiest hour: ${formatHour(peak.hourOfDay)}, server time (UTC−4). Weekends are quieter.` : undefined}
         />
@@ -66,22 +70,158 @@ async function AnalyticsResults() {
       </StaggerItem>
 
       <StaggerItem className="flex flex-col gap-4">
-        <SectionTitle number="03" title="Errors" lead="Share of every HTTP status; 404 and 500 highlighted." />
+        <SectionTitle number="03" layer="Batch · Hive" title="Errors" lead="Share of every HTTP status; 404 and 500 highlighted." />
         <ErrorSection results={results} />
       </StaggerItem>
 
       <StaggerItem className="flex flex-col gap-4">
-        <SectionTitle number="04" title="Most active visitors" lead="Mostly ISP proxies that forward many users at once." />
+        <SectionTitle number="04" layer="Batch · Hive" title="Most active visitors" lead="Mostly ISP proxies that forward many users at once." />
         <Section title="Top 10 client hosts" description="Requests per host name or IP address.">
           <RankedTable labelHeader="Host" rows={results.topHosts.map((h) => ({ label: h.host, hits: h.hits }))} />
         </Section>
       </StaggerItem>
 
       <StaggerItem className="flex flex-col gap-4">
-        <SectionTitle title="Data quality" lead="Lines the Common Log Format regex could not parse are never dropped silently." />
+        <SectionTitle layer="Batch · Hive" title="Data quality" lead="Lines the Common Log Format regex could not parse are never dropped silently." />
         <QualitySection results={results} />
       </StaggerItem>
+
+      <SpeedSections database={arch.mysqlDb} />
     </Stagger>
+  );
+}
+
+async function SpeedSections({ database }: { database: string }) {
+  const speed = await orFallback("speed-analytics", () => fetchSpeedAnalytics(database), null);
+  const empty = !speed || (speed.alerts.length === 0 && speed.days.every((d) => d.speed.hits === 0));
+  return (
+    <>
+      <StaggerItem className="flex flex-col gap-4">
+        <SectionTitle
+          number="05"
+          layer="Speed · Spark"
+          title="Suspicious activity"
+          lead="Minutes the stream flagged above the 99.9th percentile of a normal minute: suspicious patterns, not proven attacks."
+        />
+        {empty || !speed ? <EmptyNote>No speed layer results yet. Replay the log through Kafka to fill them.</EmptyNote> : <AlertsSection speed={speed} />}
+      </StaggerItem>
+      <StaggerItem className="flex flex-col gap-4">
+        <SectionTitle
+          number="06"
+          layer="Batch vs speed"
+          title="Do both layers agree?"
+          lead="Spark's per-minute counts, summed per day, against Hive's hits_per_day."
+        />
+        {empty || !speed ? <EmptyNote>No speed layer results yet.</EmptyNote> : <AgreementSection speed={speed} />}
+      </StaggerItem>
+    </>
+  );
+}
+
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">{children}</p>;
+}
+
+const KIND_ORDER = ["traffic_spike", "not_found_burst", "server_errors", "host_flood"] as const;
+
+function AlertsSection({ speed }: { speed: SpeedAnalytics }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {KIND_ORDER.map((kind) => {
+          const alert = speed.alerts.find((a) => a.kind === kind);
+          return (
+            <Card key={kind}>
+              <CardHeader>
+                <CardTitle>
+                  <AlertKindBadge kind={kind} />
+                </CardTitle>
+                <CardDescription>{alert ? `Threshold ≥ ${formatInt(alert.threshold)} ${alertUnit(kind)}` : "No minute flagged"}</CardDescription>
+              </CardHeader>
+              {alert && (
+                <CardContent>
+                  <p className="font-display text-2xl tabular-nums">{formatInt(alert.flagged)}</p>
+                  <p className="eyebrow text-muted-foreground">flagged minutes</p>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Worst: <span className="font-mono tabular-nums">{formatInt(alert.worstValue)}</span> {alertUnit(kind)} at{" "}
+                    <span className="font-mono">{alert.worstMinute}</span>
+                    {alert.worstSubject && (
+                      <>
+                        {" "}from <span className="font-mono break-all">{alert.worstSubject}</span>
+                      </>
+                    )}
+                  </p>
+                </CardContent>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+      {speed.floodHosts.length > 0 && (
+        <Section title="Top flooding hosts" description="Hosts flagged most often for one-minute request floods.">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Host</TableHead>
+                <TableHead className="text-right">Flagged minutes</TableHead>
+                <TableHead className="text-right">Max requests in one minute</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {speed.floodHosts.map((h) => (
+                <TableRow key={h.host}>
+                  <TableCell className="font-mono text-xs">{h.host}</TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">{formatInt(h.flaggedMinutes)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">{formatInt(h.maxRequests)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Section>
+      )}
+    </>
+  );
+}
+
+function AgreementSection({ speed }: { speed: SpeedAnalytics }) {
+  if (!speed.batchRun) return <EmptyNote>The batch layer has not exported hits_per_day yet.</EmptyNote>;
+  const matching = speed.days.filter((d) => d.match === true).length;
+  const num = "text-right font-mono text-xs tabular-nums";
+  return (
+    <Section title={`${matching} of ${speed.days.length} days match`} description="A day matches when hits, 4xx and 5xx are all equal.">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Day</TableHead>
+            <TableHead className="text-right">Hive hits</TableHead>
+            <TableHead className="text-right">Spark hits</TableHead>
+            <TableHead className="text-right">Hive 4xx</TableHead>
+            <TableHead className="text-right">Spark 4xx</TableHead>
+            <TableHead className="text-right">Hive 5xx</TableHead>
+            <TableHead className="text-right">Spark 5xx</TableHead>
+            <TableHead className="text-right">Match</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {speed.days.map((d) => (
+            <TableRow key={d.day}>
+              <TableCell className="font-mono text-xs">{d.day}</TableCell>
+              <TableCell className={num}>{d.batch ? formatInt(d.batch.hits) : "-"}</TableCell>
+              <TableCell className={num}>{formatInt(d.speed.hits)}</TableCell>
+              <TableCell className={num}>{d.batch ? formatInt(d.batch.clientErrors) : "-"}</TableCell>
+              <TableCell className={num}>{formatInt(d.speed.clientErrors)}</TableCell>
+              <TableCell className={num}>{d.batch ? formatInt(d.batch.serverErrors) : "-"}</TableCell>
+              <TableCell className={num}>{formatInt(d.speed.serverErrors)}</TableCell>
+              <TableCell className="text-right">
+                <Badge variant={d.match === false ? "destructive" : d.match ? "secondary" : "outline"}>
+                  {d.match === null ? "no batch" : d.match ? "match" : "mismatch"}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Section>
   );
 }
 

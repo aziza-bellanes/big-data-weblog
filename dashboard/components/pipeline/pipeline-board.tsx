@@ -30,7 +30,7 @@ export function PipelineBoard() {
   const flow = buildFlow(snapshot, rates);
   const job = latestJob(snapshot);
   const lag = snapshot.kafka.consumerLag;
-  const writer = snapshot.arch === "parallel" ? "kafka-hdfs-writer" : "flume-agent2";
+  const writer = "kafka-hdfs-writer";
 
   return (
     <>
@@ -44,18 +44,14 @@ export function PipelineBoard() {
 
       <Panel
         title="Data flow"
-        description={
-          snapshot.arch === "parallel"
-            ? "Three independent branches into HDFS, then the batch part. Probed every two seconds; moving dashes mean data is flowing."
-            : "One chain from the log to MySQL. Probed every two seconds; moving dashes mean data is flowing."
-        }
+        description="Three independent branches into HDFS (Kafka feeds an archive writer and the Spark speed layer), then the batch part. Probed every two seconds; moving dashes mean data is flowing."
       >
         <FlowDiagram flow={flow} />
       </Panel>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Panel className="xl:col-span-3" title="Throughput" description="Lines per second at each ingestion stage, last three minutes.">
-          <ThroughputChart history={history} arch={snapshot.arch} />
+          <ThroughputChart history={history} />
           <p className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t pt-4 text-xs text-muted-foreground">
             <span>
               Kafka consumer lag{" "}

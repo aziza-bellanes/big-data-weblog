@@ -1,6 +1,6 @@
 -- Hive schema: raw logs, parsed view, reference data and result tables.
--- Shared by both architectures: scripts/lib/common.sh (beeline_run) passes the database
--- and the HDFS locations of the selected one as Hive variables. Safe to run repeatedly.
+-- scripts/lib/common.sh (beeline_run) passes the database and the HDFS locations of
+-- config/architectures.json as Hive variables. Safe to run repeatedly.
 
 CREATE DATABASE IF NOT EXISTS ${hivevar:db};
 USE ${hivevar:db};

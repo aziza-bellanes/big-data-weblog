@@ -1,5 +1,7 @@
 // A4 page builders shared by the report and the guide: plain and cream pages with the template's
 // block bars, content pages with a page number, and the big numbered section dividers.
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { esc } from "./format.ts";
 import { asset, bars } from "./layout.ts";
 
@@ -46,3 +48,9 @@ export function createPages(sections: readonly string[]) {
 /** An image under docs/ with its caption. */
 export const figure = (src: string, caption: string, className = "") =>
   `<div class="figure ${className}"><img src="${asset(src)}" alt="${esc(caption)}"><p class="caption">${caption}</p></div>`;
+
+/** True when the image exists: screenshots only appear in the documents once `make screenshots` has captured them. */
+export const hasAsset = (src: string) => existsSync(fileURLToPath(asset(src)));
+
+/** Like `figure`, but empty while the screenshot has not been captured. */
+export const optionalFigure = (src: string, caption: string, className = "") => hasAsset(src) ? figure(src, caption, className) : "";

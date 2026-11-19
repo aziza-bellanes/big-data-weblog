@@ -9,10 +9,10 @@ export default function PipelinePage() {
   return (
     <>
       <PageHeader
-        number="03"
+        number="04"
         eyebrow="Live pipeline"
         title="Data in motion"
-        description="Run the selected architecture from here and follow every line into HDFS, through the Hive analysis and the Sqoop export. The switch in the top bar changes architecture."
+        description="Run the pipeline from here and follow every line into HDFS, through the Spark speed layer, the Hive analysis and the Sqoop export."
         aside={<LiveIndicator />}
       />
       <PageBody>

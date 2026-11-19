@@ -1,17 +1,19 @@
 import {
   ArrowLeftRight,
+  Zap,
   Cpu,
   Database,
   DatabaseZap,
   FileText,
   HardDrive,
   Layers,
+  Monitor,
   Send,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { Rates } from "@/hooks/use-pipeline";
-import { formatBytes, formatCompact, formatInt } from "@/lib/format";
+import { formatBytes, formatCompact, formatDuration, formatInt } from "@/lib/format";
 import type { PipelineSnapshot, StageState } from "@/lib/types";
 
 export interface Stage {
@@ -70,28 +72,19 @@ const signal = (active: boolean, label: string): Connector => ({ active, label: 
 // Literal class names, so Tailwind can see them.
 const GRID_COLUMNS = "xl:grid-cols-[1fr_3rem_1fr_3rem_1fr_3rem_1fr]";
 
-/** Ordered stages and links of the selected architecture, built from one snapshot. */
-export function buildFlow(s: PipelineSnapshot, rates: Rates): Flow {
-  return s.arch === "parallel" ? parallelFlow(s, rates) : sequentialFlow(s, rates);
-}
-
 /** Every stage of a flow, in reading order. */
 export const flowStages = (flow: Flow): Stage[] =>
   flow.items.flatMap((item) => (item.type === "stage" ? [item.stage] : []));
 
 // ---- What is running now ---------------------------------------------------------------------
 
-/** Keys of the steps running for this architecture (its own jobs and a comparison's). */
+/** Keys of the steps running now. */
 function runningSteps(s: PipelineSnapshot): Set<string> {
   const jobs = s.control?.active ?? [];
-  return new Set(
-    jobs.flatMap((job) =>
-      job.steps.filter((step) => step.status === "running" && (step.arch ?? job.arch) === s.arch).map((step) => step.key),
-    ),
-  );
+  return new Set(jobs.flatMap((job) => job.steps.filter((step) => step.status === "running").map((step) => step.key)));
 }
 
-// ---- Stages shared by both architectures -----------------------------------------------------
+// ---- Stages -----------------------------------------------------
 
 function replayStage(s: PipelineSnapshot, rates: Rates): Stage {
   const datasetLines = s.control?.datasetLines ?? null;
@@ -124,6 +117,25 @@ function kafkaStage(s: PipelineSnapshot, rates: Rates): Stage {
     details: [
       { label: "In", value: perSecond(rates.kafka) },
       { label: "Lag", value: formatInt(s.kafka.consumerLag) },
+    ],
+  };
+}
+
+function sparkStage(s: PipelineSnapshot, rates: Rates): Stage {
+  const { spark } = s;
+  const lastBatch = spark.lastBatchAt === null ? "none yet" : `${formatDuration(Math.max(0, s.takenAt - spark.lastBatchAt))} ago`;
+  return {
+    key: "spark",
+    tool: "Spark Streaming",
+    role: "→ Parquet in HDFS + MySQL",
+    icon: Zap,
+    state: flowing(spark.state, rates.spark),
+    metric: spark.events,
+    formatMetric: formatCompact,
+    metricLabel: "events processed",
+    details: [
+      { label: "Batches", value: formatInt(spark.batches) },
+      { label: "Last", value: lastBatch },
     ],
   };
 }
@@ -165,117 +177,66 @@ function mysqlStage(s: PipelineSnapshot, exporting: boolean): Stage {
   return {
     key: "mysql",
     tool: "MySQL",
-    role: `${s.mysql.database} · results`,
+    role: `${s.mysql.database} · serving`,
     icon: Database,
     // Results only move while Sqoop exports them, so a reachable database reads as idle.
     state: s.mysql.state === "down" ? "down" : exporting ? "active" : "idle",
     metric: s.mysql.resultRows > 0 ? 6 : 0,
     formatMetric: formatInt,
     metricLabel: "result tables filled",
-    details: [{ label: "Read by", value: "this dashboard" }],
-  };
-}
-
-// ---- A · Sequential: one chain, drawn as a snake ---------------------------------------------
-
-function sequentialFlow(s: PipelineSnapshot, rates: Rates): Flow {
-  const running = runningSteps(s);
-  const exporting = running.has("sqoop-export");
-  const importing = running.has("sqoop-import");
-  const hiveActive = s.yarn.running > 0;
-  const stage = (st: Stage, place: string): FlowItem => ({ type: "stage", stage: st, place });
-  const link = (connector: Connector, direction: Direction, place: string): FlowItem => ({ type: "link", connector, direction, place });
-
-  return {
-    grid: `${GRID_COLUMNS} xl:grid-rows-[auto_auto_4rem_auto]`,
-    items: [
-      { type: "lane", label: "Near-real-time ingestion", place: "mb-3 xl:col-span-7 xl:row-start-1" },
-      stage(replayStage(s, rates), "xl:col-start-1 xl:row-start-2"),
-      link(stream(rates.replay), "forward", "xl:col-start-2 xl:row-start-2"),
-      stage(
-        {
-          key: "collector",
-          tool: "Flume agent 1",
-          role: "TAILDIR → Kafka sink",
-          icon: Send,
-          state: flowing(s.collector.state, rates.collector),
-          metric: s.collector.eventsOut,
-          formatMetric: formatCompact,
-          metricLabel: "events sent",
-          details: [
-            { label: "Rate", value: perSecond(rates.collector) },
-            { label: "Channel", value: formatInt(s.collector.channelSize) },
-          ],
-        },
-        "xl:col-start-3 xl:row-start-2",
-      ),
-      link(stream(rates.collector), "forward", "xl:col-start-4 xl:row-start-2"),
-      stage(kafkaStage(s, rates), "xl:col-start-5 xl:row-start-2"),
-      link(stream(rates.writer), "forward", "xl:col-start-6 xl:row-start-2"),
-      stage(
-        {
-          key: "writer",
-          tool: "Flume agent 2",
-          role: "Kafka source → HDFS sink",
-          icon: Workflow,
-          state: flowing(s.writer.state, rates.writer),
-          metric: s.writer.eventsOut,
-          formatMetric: formatCompact,
-          metricLabel: "events written",
-          details: [
-            { label: "Rate", value: perSecond(rates.writer) },
-            { label: "Channel", value: formatInt(s.writer.channelSize) },
-          ],
-        },
-        "xl:col-start-7 xl:row-start-2",
-      ),
-      { type: "lane", label: "Batch analysis and reporting", place: "mt-6 mb-1 xl:col-span-5 xl:col-start-1 xl:row-start-3 xl:mt-0 xl:self-end" },
-      link(stream(rates.writer), "down", "xl:col-start-7 xl:row-start-3"),
-      stage(rawHdfsStage(s, rates.writer, `${s.hdfs.path}/dt=…`), "xl:col-start-7 xl:row-start-4"),
-      link(signal(hiveActive && !importing && !exporting, "reading"), "backward", "xl:col-start-6 xl:row-start-4"),
-      stage(hiveStage(s), "xl:col-start-5 xl:row-start-4"),
-      link(signal(exporting, "results"), "backward", "xl:col-start-4 xl:row-start-4"),
-      stage(sqoopExportStage(s, exporting, importing, "HDFS ↔ MySQL"), "xl:col-start-3 xl:row-start-4"),
-      link(signal(exporting, "export"), "backward", "xl:col-start-2 xl:row-start-4"),
-      stage(mysqlStage(s, exporting), "xl:col-start-1 xl:row-start-4"),
-    ],
-  };
-}
-
-function rawHdfsStage(s: PipelineSnapshot, rate: number, role: string): Stage {
-  return {
-    key: "hdfs",
-    tool: "HDFS",
-    role,
-    icon: HardDrive,
-    state: flowing(s.hdfs.state, rate),
-    metric: s.hdfs.partitions,
-    formatMetric: formatInt,
-    metricLabel: "partitions (dt=…)",
     details: [
-      { label: "Size", value: formatBytes(s.hdfs.bytes) },
-      { label: "Open files", value: formatInt(s.hdfs.openFiles) },
+      { label: "From Sqoop", value: "6 tables" },
+      { label: "From Spark", value: `${formatInt(s.spark.batches)} batches` },
     ],
   };
 }
 
-// ---- B · Parallel: three independent branches into HDFS --------------------------------------
+function dashboardStage(s: PipelineSnapshot): Stage {
+  return {
+    key: "dashboard",
+    tool: "Dashboard",
+    role: "Next.js · localhost:3030",
+    icon: Monitor,
+    state: s.mysql.state === "down" ? "down" : "idle",
+    metric: s.mysql.resultRows,
+    formatMetric: formatInt,
+    metricLabel: "result rows served",
+    details: [],
+  };
+}
 
-function parallelFlow(s: PipelineSnapshot, rates: Rates): Flow {
+function mysqlSourceStage(s: PipelineSnapshot, importing: boolean): Stage {
+  return {
+    key: "mysql-source",
+    tool: "MySQL",
+    role: "status_codes table",
+    icon: Database,
+    state: s.mysql.state === "down" ? "down" : importing ? "active" : "idle",
+    metric: 1,
+    formatMetric: formatInt,
+    metricLabel: "reference table to import",
+    details: [{ label: "Database", value: s.mysql.database }],
+  };
+}
+
+// ---- Three independent branches into HDFS, then the batch part --------------------------------------
+
+/** Ordered stages and links of the pipeline, built from one snapshot. */
+export function buildFlow(s: PipelineSnapshot, rates: Rates): Flow {
   const running = runningSteps(s);
   const exporting = running.has("sqoop-export");
   // The Sqoop branch runs on its own (ingest-sqoop) or with the two others (replay).
   const importing = running.has("ingest-sqoop") || running.has("sqoop-import");
   const hiveActive = s.yarn.running > 0;
   const datasetLines = s.control?.datasetLines ?? null;
-  const produced = s.producer?.linesWritten ?? 0;
-  const zoneBytes = s.hdfs.bytes + (s.events?.bytes ?? 0) + (s.reference?.bytes ?? 0);
+  const produced = s.producer.linesWritten;
+  const zoneBytes = s.hdfs.bytes + s.events.bytes + (s.speedFiles?.bytes ?? 0) + s.reference.bytes;
   const stage = (st: Stage, place: string): FlowItem => ({ type: "stage", stage: st, place });
   const link = (connector: Connector, direction: Direction, place: string): FlowItem => ({ type: "link", connector, direction, place });
   const lane = (label: string, row: string): FlowItem => ({ type: "lane", label, place: `mb-3 mt-4 xl:mt-0 xl:col-span-5 xl:col-start-1 ${row}` });
 
   return {
-    grid: `${GRID_COLUMNS} xl:grid-rows-[auto_auto_auto_auto_auto_auto_4rem_auto]`,
+    grid: `${GRID_COLUMNS} xl:grid-rows-[auto_auto_auto_auto_auto_auto_3rem_auto_4rem_auto]`,
     items: [
       lane("Flume branch · raw lines", "xl:row-start-1 !mt-0"),
       stage(replayStage(s, rates), "xl:col-start-1 xl:row-start-2"),
@@ -299,14 +260,36 @@ function parallelFlow(s: PipelineSnapshot, rates: Rates): Flow {
       ),
       link(stream(rates.collector), "forward", "xl:col-span-3 xl:col-start-4 xl:row-start-2"),
 
-      lane("Kafka branch · JSON events", "xl:row-start-3 xl:pt-6"),
+      lane("Sqoop branch · reference data", "xl:row-start-3 xl:pt-6"),
+      stage(mysqlSourceStage(s, importing), "xl:col-start-1 xl:row-start-4"),
+      link(signal(importing, "status_codes"), "forward", "xl:col-start-2 xl:row-start-4"),
+      stage(
+        {
+          key: "import",
+          tool: "Sqoop import",
+          role: "MySQL status_codes → HDFS",
+          icon: DatabaseZap,
+          state: s.reference.state === "down" ? "down" : importing ? "active" : "idle",
+          metric: s.reference.files,
+          formatMetric: formatInt,
+          metricLabel: "reference files",
+          details: [
+            { label: "Size", value: formatBytes(s.reference.bytes) },
+            { label: "Now", value: importing ? "importing" : "waiting" },
+          ],
+        },
+        "xl:col-start-3 xl:row-start-4",
+      ),
+      link(signal(importing, "to HDFS"), "forward", "xl:col-span-3 xl:col-start-4 xl:row-start-4"),
+
+      lane("Kafka branch · JSON events, two consumers", "xl:row-start-5 xl:pt-6"),
       stage(
         {
           key: "producer",
           tool: "Kafka producer",
           role: "NASA files → JSON events",
           icon: FileText,
-          state: flowing(s.producer?.state ?? "idle", rates.producer),
+          state: flowing(s.producer.state, rates.producer),
           metric: produced,
           formatMetric: formatCompact,
           metricLabel: "events acknowledged",
@@ -315,16 +298,16 @@ function parallelFlow(s: PipelineSnapshot, rates: Rates): Flow {
             ? { value: Math.min(100, (produced / datasetLines) * 100), label: `of ${formatCompact(datasetLines)} events` }
             : undefined,
         },
-        "xl:col-start-1 xl:row-start-4",
+        "xl:col-start-1 xl:row-start-6",
       ),
-      link(stream(rates.producer), "forward", "xl:col-start-2 xl:row-start-4"),
-      stage(kafkaStage(s, rates), "xl:col-start-3 xl:row-start-4"),
-      link(stream(rates.writer), "forward", "xl:col-start-4 xl:row-start-4"),
+      link(stream(rates.producer), "forward", "xl:col-start-2 xl:row-start-6"),
+      stage(kafkaStage(s, rates), "xl:col-start-3 xl:row-start-6"),
+      link(stream(rates.writer), "forward", "xl:col-start-4 xl:row-start-6"),
       stage(
         {
           key: "writer",
-          tool: "HDFS writer",
-          role: "closed file, then commit",
+          tool: "Archive writer",
+          role: "kafka-hdfs-writer → JSON in HDFS",
           icon: Workflow,
           state: flowing(s.writer.state, rates.writer),
           metric: s.writer.eventsOut,
@@ -332,32 +315,17 @@ function parallelFlow(s: PipelineSnapshot, rates: Rates): Flow {
           metricLabel: "events written",
           details: [
             { label: "Rate", value: perSecond(rates.writer) },
-            { label: "Files", value: formatInt(s.events?.files ?? 0) },
+            { label: "Files", value: formatInt(s.events.files) },
           ],
         },
-        "xl:col-start-5 xl:row-start-4",
+        "xl:col-start-5 xl:row-start-6",
       ),
-      link(stream(rates.writer), "forward", "xl:col-start-6 xl:row-start-4"),
+      link(stream(rates.writer), "forward", "xl:col-start-6 xl:row-start-6"),
 
-      lane("Sqoop branch · reference data", "xl:row-start-5 xl:pt-6"),
-      stage(
-        {
-          key: "import",
-          tool: "Sqoop import",
-          role: "MySQL status_codes → HDFS",
-          icon: DatabaseZap,
-          state: s.reference?.state === "down" ? "down" : importing ? "active" : "idle",
-          metric: s.reference?.files ?? 0,
-          formatMetric: formatInt,
-          metricLabel: "reference files",
-          details: [
-            { label: "Size", value: formatBytes(s.reference?.bytes ?? 0) },
-            { label: "Now", value: importing ? "importing" : "waiting" },
-          ],
-        },
-        "xl:col-start-1 xl:row-start-6",
-      ),
-      link(signal(importing, "status_codes"), "forward", "xl:col-span-5 xl:col-start-2 xl:row-start-6"),
+      // Second consumer: Spark sits under Kafka, writes Parquet to HDFS and drops live totals into MySQL.
+      link(stream(rates.spark), "down", "xl:col-start-3 xl:row-start-7"),
+      stage(sparkStage(s, rates), "xl:col-start-3 xl:row-start-8"),
+      link(stream(rates.spark), "forward", "xl:col-span-3 xl:col-start-4 xl:row-start-8"),
 
       stage(
         {
@@ -370,21 +338,25 @@ function parallelFlow(s: PipelineSnapshot, rates: Rates): Flow {
           formatMetric: formatInt,
           metricLabel: "days of raw lines",
           details: [
-            { label: "Events", value: formatInt(s.events?.files ?? 0) + " files" },
+            { label: "Events", value: formatInt(s.events.files) + " files" },
             { label: "Size", value: formatBytes(zoneBytes) },
-            { label: "Open", value: formatInt(s.hdfs.openFiles + (s.events?.openFiles ?? 0)) },
+            { label: "Speed", value: formatInt(s.speedFiles?.files ?? 0) + " files" },
+            { label: "Open", value: formatInt(s.hdfs.openFiles + s.events.openFiles) },
           ],
         },
-        "xl:col-start-7 xl:row-span-5 xl:row-start-2",
+        "xl:col-start-7 xl:row-span-7 xl:row-start-2",
       ),
 
-      { type: "lane", label: "Batch analysis and reporting", place: "mt-6 mb-1 xl:col-span-5 xl:col-start-1 xl:row-start-7 xl:mt-0 xl:self-end" },
-      link(signal(hiveActive && !exporting, "reading"), "down", "xl:col-start-7 xl:row-start-7"),
-      stage(hiveStage(s), "xl:col-start-7 xl:row-start-8"),
-      link(signal(exporting, "results"), "backward", "xl:col-start-6 xl:row-start-8"),
-      stage(sqoopExportStage(s, exporting, false, "HDFS → MySQL"), "xl:col-start-5 xl:row-start-8"),
-      link(signal(exporting, "export"), "backward", "xl:col-start-4 xl:row-start-8"),
-      stage(mysqlStage(s, exporting), "xl:col-start-3 xl:row-start-8"),
+      { type: "lane", label: "Batch analysis and reporting", place: "mt-6 mb-1 xl:col-span-2 xl:col-start-1 xl:row-start-9 xl:mt-0 xl:self-end" },
+      link(signal(hiveActive && !exporting, "reading"), "down", "xl:col-start-7 xl:row-start-9"),
+      stage(hiveStage(s), "xl:col-start-7 xl:row-start-10"),
+      link(signal(exporting, "results"), "backward", "xl:col-start-6 xl:row-start-10"),
+      stage(sqoopExportStage(s, exporting, false, "HDFS → MySQL"), "xl:col-start-5 xl:row-start-10"),
+      link(signal(exporting, "export"), "backward", "xl:col-start-4 xl:row-start-10"),
+      link(stream(rates.spark), "down", "hidden xl:block xl:col-start-3 xl:row-start-9"),
+      stage(mysqlStage(s, exporting), "xl:col-start-3 xl:row-start-10"),
+      link(signal(s.mysql.state !== "down", "queries"), "backward", "xl:col-start-2 xl:row-start-10"),
+      stage(dashboardStage(s), "xl:col-start-1 xl:row-start-10"),
     ],
   };
 }

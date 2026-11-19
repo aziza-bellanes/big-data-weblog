@@ -1,27 +1,24 @@
 import "server-only";
 import { config } from "@/lib/config";
 import { getJson } from "@/lib/sources/http";
-import type { ArchName, ControlStatus, Job, JobAction, LogLine, RunRecord } from "@/lib/types";
+import type { ArchName, ControlStatus, Job, JobAction, LogLine } from "@/lib/types";
 
 // Client for the control API in the client container (scripts/control_server.py).
 
 export const JOB_ACTIONS: readonly JobAction[] = [
-  "replay", "pipeline", "counts", "reset", "compare",
+  "replay", "pipeline", "counts", "reset",
   "hive-tables", "sqoop-import", "hive-analysis", "sqoop-export",
   "ingest-flume", "ingest-kafka", "ingest-sqoop", "verify-ingestion",
 ];
 /** Actions that take a rate and a line limit. */
-export const RATED_ACTIONS: readonly JobAction[] = ["replay", "compare", "ingest-flume", "ingest-kafka"];
+export const RATED_ACTIONS: readonly JobAction[] = ["replay", "ingest-flume", "ingest-kafka"];
 export const REPLAY_RATES = [1000, 2000, 5000, 10000, 20000] as const;
 
 export interface StartJobRequest {
   action: JobAction;
-  /** Omitted for a comparison, which runs both architectures. */
   arch?: ArchName;
   rate?: number;
   limit?: number;
-  /** Comparison only: empty both architectures first. */
-  fresh?: boolean;
 }
 
 /** Error carrying the control API's status and message, passed through to the browser. */
@@ -58,8 +55,3 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 export const startJob = (request: StartJobRequest) => post<Job>("/jobs", request);
 
 export const cancelJob = (jobId: string) => post<Job>(`/jobs/${encodeURIComponent(jobId)}/cancel`);
-
-export const fetchRuns = () => getJson<{ runs: RunRecord[] }>(`${config.controlUrl}/runs`);
-
-export const fetchRun = (id: string) =>
-  getJson<RunRecord>(`${config.controlUrl}/runs/${encodeURIComponent(id)}`);

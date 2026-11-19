@@ -9,12 +9,10 @@ readonly NAME_DIR=/var/lib/hadoop/dfs/name
 readonly READY_FLAG=/tmp/hadoop.ready
 
 # HDFS folders used by the pipeline, created once the NameNode is up.
-# Zones of both architectures, as in config/architectures.json.
+# Zones of config/architectures.json.
 readonly HDFS_DIRS=(
-    # A · Sequential
-    /data/weblogs /data/reference /data/results
-    # B · Parallel
-    /data/nasa/raw/flume /data/nasa/streaming/kafka /data/nasa/reference/sqoop /data/nasa/results
+    /data/nasa/raw/flume /data/nasa/streaming/kafka /data/nasa/streaming/spark
+    /data/nasa/checkpoints /data/nasa/reference/sqoop /data/nasa/results
     # Hive scratch space and warehouse
     /tmp /tmp/hive /user/hive/warehouse
 )

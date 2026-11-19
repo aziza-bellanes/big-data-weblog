@@ -20,7 +20,6 @@ type Shot = (page: Page) => Promise<void>;
 const VIEWPORT = { width: 1440, height: 900 };
 
 interface WebShot {
-  arch?: "sequential" | "parallel";
   captureSelector?: string;
   waitFor?: string;
   settleMs?: number;
@@ -32,7 +31,6 @@ interface WebShot {
 }
 
 async function webPage(page: Page, url: string, file: string, opts: WebShot = {}) {
-  await page.context().addCookies([{ name: "arch", value: opts.arch ?? "sequential", url: DASHBOARD }]);
   await page.goto(url, { waitUntil: "networkidle" });
   if (opts.waitFor) await page.waitForSelector(opts.waitFor, { timeout: 15_000 });
   await page.waitForTimeout(opts.settleMs ?? 800);
@@ -99,50 +97,47 @@ const SHOTS: Record<string, Shot> = {
     webPage(p, `${DASHBOARD}/analytics`, "dashboard-analytics.png", { waitFor: "text=Data quality", fullPage: true, settleMs: 1500 }),
   "dashboard-pipeline": (p) => webPage(p, `${DASHBOARD}/pipeline`, "dashboard-pipeline.png", { waitFor: "text=Data flow", settleMs: 5000 }),
   "dashboard-pipeline-parallel": (p) => webPage(p, `${DASHBOARD}/pipeline`, "dashboard-pipeline-parallel.png", {
-    arch: "parallel", settleMs: 5000,
+    settleMs: 5000,
     captureSelector: '[data-slot="card"]:has([data-slot="card-title"]:text-is("Data flow"))',
   }),
-  "dashboard-compare": (p) => webPage(p, `${DASHBOARD}/compare`, "dashboard-compare.png", { arch: "parallel", waitFor: "text=Latest comparison", fullPage: true }),
-  "dashboard-explorer": (p) => webPage(p, `${DASHBOARD}/explorer`, "dashboard-explorer.png", { arch: "parallel", settleMs: 2500, fullPage: true }),
-  "hdfs-browser": (p) =>
-    webPage(p, `${HDFS}/explorer.html#/data/weblogs`, "hdfs-browser.png", { waitFor: "text=dt=1995-07-01", settleMs: 1200, height: 620 }),
+  "dashboard-realtime": (p) => webPage(p, `${DASHBOARD}/realtime`, "dashboard-realtime.png", { settleMs: 4000, fullPage: true }),
+  "dashboard-explorer": (p) => webPage(p, `${DASHBOARD}/explorer`, "dashboard-explorer.png", { settleMs: 2500, fullPage: true }),
+  "hdfs-raw-zone": (p) =>
+    webPage(p, `${HDFS}/explorer.html#/data/nasa/raw/flume`, "hdfs-raw-zone.png", { waitFor: "text=dt=1995-07-01", settleMs: 1200, height: 620 }),
   "yarn-apps": (p) => webPage(p, `${YARN}/cluster/apps`, "yarn-apps.png", { waitFor: "#apps", settleMs: 1200, height: 720 }),
-  "dashboard-run": captureRun,
+  "dashboard-live-run": captureRun,
   "dashboard-dark": async (p) => {
     await p.emulateMedia({ colorScheme: "dark" });
     await webPage(p, `${DASHBOARD}/`, "dashboard-dark.png", { waitFor: "text=Requests per day", settleMs: 2500 });
     await p.emulateMedia({ colorScheme: "light" });
   },
-  "terminal-status": (p) =>
-    terminal(p, "terminal-status.png", {
+  "cluster-status": (p) =>
+    terminal(p, "cluster-status.png", {
       label: "make status",
       command: "docker",
       args: ["compose", "ps", "-a", "--format", "table {{.Service}}\t{{.Status}}\t{{.Ports}}"],
       head: true,
       lines: 16,
     }),
-  "terminal-hdfs": (p) =>
-    terminal(p, "terminal-hdfs.png", { label: "make hdfs-ls ARCH=sequential", command: "make", args: ["-s", "hdfs-ls", "ARCH=sequential"], head: true, lines: 10 }),
-  "terminal-topic": (p) =>
-    terminal(p, "terminal-topic.png", { label: "make topic-peek ARCH=sequential", command: "make", args: ["-s", "topic-peek", "ARCH=sequential"] }),
-  "terminal-counts": (p) => terminal(p, "terminal-counts.png", { label: "make counts ARCH=sequential", command: "make", args: ["-s", "counts", "ARCH=sequential"] }),
-  "terminal-verify": (p) => terminal(p, "terminal-verify.png", { label: "make verify-ingestion", command: "make", args: ["-s", "verify-ingestion"], lines: 24 }),
-  "terminal-compare": (p) => terminal(p, "terminal-compare.png", {
-    label: "Stored full comparison (make runs)", command: "docker",
-    args: ["compose", "exec", "-T", "client", "python3", "/opt/project/scripts/control_client.py", "show-comparison"], lines: 16,
-  }),
+  "hdfs-zones": (p) =>
+    terminal(p, "hdfs-zones.png", { label: "make hdfs-ls", command: "make", args: ["-s", "hdfs-ls"], head: true, lines: 10 }),
+  "kafka-events": (p) =>
+    terminal(p, "kafka-events.png", { label: "make topic-peek", command: "make", args: ["-s", "topic-peek"] }),
+  "no-loss-check": (p) => terminal(p, "no-loss-check.png", { label: "make counts", command: "make", args: ["-s", "counts"] }),
+  "verify-ingestion": (p) => terminal(p, "verify-ingestion.png", { label: "make verify-ingestion", command: "make", args: ["-s", "verify-ingestion"], lines: 24 }),
+  "terminal-speed": (p) => terminal(p, "terminal-speed.png", { label: "make speed-layer", command: "make", args: ["-s", "speed-layer"], lines: 24 }),
   "terminal-hive": (p) =>
     terminal(p, "terminal-hive.png", {
       label: "make beeline   >  SELECT * FROM top_pages LIMIT 5;",
       command: "docker",
-      args: ["compose", "exec", "-T", "client", "beeline", "-u", "jdbc:hive2://hive:10000/weblogs", "-n", "hadoop",
+      args: ["compose", "exec", "-T", "client", "beeline", "-u", "jdbc:hive2://hive:10000/weblogs_parallel", "-n", "hadoop",
         "--silent=true", "--outputformat=table", "-e", "SELECT * FROM top_pages LIMIT 5;"],
     }),
   "terminal-mysql": (p) =>
     terminal(p, "terminal-mysql.png", {
       label: "make mysql   >  SELECT * FROM status_distribution;",
       command: "docker",
-      args: ["compose", "exec", "-T", "mysql", "mysql", "-usqoop", "-psqoop", "weblogs", "-t", "-e",
+      args: ["compose", "exec", "-T", "mysql", "mysql", "-usqoop", "-psqoop", "weblogs_parallel", "-t", "-e",
         "SELECT status, label, category, hits, pct FROM status_distribution ORDER BY hits DESC;"],
       lines: 16,
     }),
@@ -150,14 +145,14 @@ const SHOTS: Record<string, Shot> = {
 
 /**
  * The live page during a real run: re-runs the Hive analysis step from the dashboard (it rewrites
- * the same result files in HDFS, MySQL is untouched) and captures it while MapReduce jobs run.
+ * the same result files in HDFS, MySQL is untouched; the speed check at its end re-runs too) and
+ * captures it while MapReduce jobs run.
  */
 async function captureRun(page: Page) {
-  await page.context().addCookies([{ name: "arch", value: "sequential", url: DASHBOARD }]);
   const response = await fetch(`${DASHBOARD}/api/jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "hive-analysis", arch: "sequential" }),
+    body: JSON.stringify({ action: "hive-analysis" }),
   });
   if (!response.ok) throw new Error(`could not start a run: ${await response.text()}`);
   await page.goto(`${DASHBOARD}/pipeline`, { waitUntil: "networkidle" });
@@ -165,7 +160,7 @@ async function captureRun(page: Page) {
   await page.waitForTimeout(8000);
   await page.setViewportSize({ width: VIEWPORT.width, height: 1650 });
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: `${OUT}dashboard-run.png` });
+  await page.screenshot({ path: `${OUT}dashboard-live-run.png` });
   await page.setViewportSize(VIEWPORT);
 }
 

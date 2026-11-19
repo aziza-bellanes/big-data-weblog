@@ -14,6 +14,7 @@ export interface Rates {
   producer: number;
   kafka: number;
   writer: number;
+  spark: number;
 }
 
 export interface Sample extends Rates {
@@ -31,23 +32,30 @@ export interface PipelineState {
   refresh: () => void;
 }
 
-const ZERO_RATES: Rates = { replay: 0, collector: 0, producer: 0, kafka: 0, writer: 0 };
+/**
+ * Spark adds its events once per 5 s micro-batch, so between two 2 s polls its counter
+ * often does not move. Its rate is measured over this longer window instead.
+ */
+const SPARK_WINDOW_MS = 12_000;
+
+const ZERO_RATES: Rates = { replay: 0, collector: 0, producer: 0, kafka: 0, writer: 0, spark: 0 };
 
 function ratesBetween(previous: PipelineSnapshot, current: PipelineSnapshot): Rates {
   const seconds = (current.takenAt - previous.takenAt) / 1000;
-  if (seconds <= 0 || current.arch !== previous.arch) return ZERO_RATES;
+  if (seconds <= 0) return ZERO_RATES;
   const perSecond = (now: number, before: number) => Math.max(0, (now - before) / seconds);
   return {
     replay: perSecond(current.replay.linesWritten, previous.replay.linesWritten),
     collector: perSecond(current.collector.eventsOut, previous.collector.eventsOut),
-    producer: perSecond(current.producer?.linesWritten ?? 0, previous.producer?.linesWritten ?? 0),
+    producer: perSecond(current.producer.linesWritten, previous.producer.linesWritten),
     kafka: perSecond(current.kafka.messages, previous.kafka.messages),
     writer: perSecond(current.writer.eventsOut, previous.writer.eventsOut),
+    spark: perSecond(current.spark.events, previous.spark.events),
   };
 }
 
 /**
- * Poll /api/pipeline (the architecture selected with the switch), derive per-stage throughput
+ * Poll /api/pipeline, derive per-stage throughput
  * and keep a short history for charts.
  */
 export function usePipeline(): PipelineState {
@@ -58,6 +66,7 @@ export function usePipeline(): PipelineState {
     offline: false,
   });
   const previous = useRef<PipelineSnapshot | null>(null);
+  const sparkSeen = useRef<{ takenAt: number; events: number }[]>([]);
   const pollNow = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -71,15 +80,19 @@ export function usePipeline(): PipelineState {
         if (!response.ok) throw new Error(String(response.status));
         const snapshot = (await response.json()) as PipelineSnapshot;
         if (cancelled) return;
-        const switched = previous.current !== null && previous.current.arch !== snapshot.arch;
-        const rates = previous.current ? ratesBetween(previous.current, snapshot) : ZERO_RATES;
+        const rates = { ...(previous.current ? ratesBetween(previous.current, snapshot) : ZERO_RATES) };
         previous.current = snapshot;
+        const seen = [...sparkSeen.current, { takenAt: snapshot.takenAt, events: snapshot.spark.events }]
+          .filter((point) => snapshot.takenAt - point.takenAt <= SPARK_WINDOW_MS);
+        sparkSeen.current = seen;
+        const oldest = seen[0];
+        const window = (snapshot.takenAt - oldest.takenAt) / 1000;
+        rates.spark = window > 0 ? Math.max(0, (snapshot.spark.events - oldest.events) / window) : 0;
         const sample: Sample = { takenAt: snapshot.takenAt, consumerLag: snapshot.kafka.consumerLag, ...rates };
-        // Another architecture was selected: its throughput starts a new history.
         setState((s) => ({
           snapshot,
           rates,
-          history: [...(switched ? [] : s.history), sample].slice(-HISTORY_SIZE),
+          history: [...s.history, sample].slice(-HISTORY_SIZE),
           offline: false,
         }));
       } catch {

@@ -7,6 +7,8 @@
     "capture": "tsx src/capture.ts",
     "verify-ui": "tsx src/verify-ui.ts",
     "render": "tsx src/render.ts",
+    "diagrams": "tsx src/diagrams.ts",
+    "study": "tsx src/study.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

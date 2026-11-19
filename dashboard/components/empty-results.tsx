@@ -5,15 +5,13 @@ import Link from "next/link";
 import { usePipelineContext } from "@/components/pipeline/pipeline-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Architecture } from "@/lib/types";
 
 /** Shown when MySQL holds no results yet, with a way to produce them right away. */
-export function EmptyResults({ arch }: { arch: Pick<Architecture, "name" | "label"> }) {
+export function EmptyResults() {
   const { snapshot, busy, startJob } = usePipelineContext();
   const control = snapshot?.control;
-  const running = control?.active.some((job) => job.arch === snapshot?.arch || job.action === "compare");
-  // The live snapshot may still describe the previous architecture for a moment after a switch.
-  const replayed = snapshot?.arch === arch.name ? snapshot.replay.linesWritten : 0;
+  const running = (control?.active.length ?? 0) > 0;
+  const replayed = snapshot?.replay.linesWritten ?? 0;
 
   return (
     <Card>
@@ -22,7 +20,7 @@ export function EmptyResults({ arch }: { arch: Pick<Architecture, "name" | "labe
           <DatabaseZap className="size-5" />
         </span>
         <h2 className="font-display text-lg text-primary uppercase">
-          No results yet for {arch.label}
+          No batch results yet
         </h2>
         <p className="max-w-md text-sm text-muted-foreground">
           {replayed > 0
@@ -44,7 +42,7 @@ export function EmptyResults({ arch }: { arch: Pick<Architecture, "name" | "labe
           </Button>
         </div>
         <p className="font-mono text-xs text-muted-foreground">
-          or from a terminal: make replay ARCH={arch.name} · make pipeline ARCH={arch.name}
+          or from a terminal: make replay · make pipeline
         </p>
       </CardContent>
     </Card>

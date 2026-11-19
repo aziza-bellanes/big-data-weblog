@@ -1,19 +1,17 @@
 // The written report ("compte rendu"), page by page, in the structure of the template:
 // cover, contents, numbered section dividers, content pages, annex, closing page.
 import { dailyChart, hourlyChart, statusDonut } from "./charts.ts";
-import { comparisonChart, comparisonTable } from "./comparison.ts";
 import type { Report } from "./data.ts";
 import { architectureSvg } from "./diagram.ts";
 import { bytes, esc, hour, int, pct } from "./format.ts";
-import { htmlDocument } from "./layout.ts";
-import { createPages, figure } from "./pages.ts";
+import { asset, htmlDocument } from "./layout.ts";
+import { createPages, figure, hasAsset, optionalFigure } from "./pages.ts";
 
 const SECTIONS = [
   "Introduction",
   "Architecture and tools",
   "Implementation",
   "Results",
-  "Comparison",
   "Assessment",
   "Conclusion",
 ] as const;
@@ -49,13 +47,17 @@ function introduction(r: Report) {
      resource, and whether it worked. A busy site produces millions of these lines a month, which is too many for a
      spreadsheet and the classic entry point into big data processing. This project builds a complete pipeline that
      collects such logs continuously, stores them durably and answers business questions with SQL, using the Hadoop
-     ecosystem tools studied in the course.</p>
+     ecosystem tools studied in the course. It is a Lambda architecture: a batch layer for exact history and a speed
+     layer for answers within seconds.</p>
      <h3 class="label-light">Objectives</h3>
      <ul class="clean narrow">
-       <li>Ingest log lines continuously with <strong>Flume</strong>, buffered by <strong>Kafka</strong>.</li>
-       <li>Persist every line in <strong>HDFS</strong> without loss, partitioned by day.</li>
+       <li>Start three ingestion branches together: <strong>Flume</strong> for the raw log lines,
+           <strong>Kafka</strong> for structured events, <strong>Sqoop</strong> for reference data. All end in
+           <strong>HDFS</strong>, without loss, partitioned by day.</li>
+       <li>Add a <strong>speed layer</strong>: <strong>Spark</strong> Structured Streaming reads the Kafka topic and
+           gives per-minute traffic and alerts within seconds, while the batch layer stays exact.</li>
        <li>Answer four questions with <strong>Hive</strong>: top 10 pages, traffic per hour, share of 404/500 errors,
-           top 10 client hosts.</li>
+           top 10 client hosts. Two more come from Spark: suspicious activity, and whether both layers agree.</li>
        <li>Move data both ways with <strong>Sqoop</strong>: results to MySQL, a reference table from MySQL.</li>
        <li>Make it reproducible, observable and decoupled, so each stage can restart on its own.</li>
      </ul>
@@ -73,79 +75,90 @@ host           identity user  time                     request                  
 
 function architecture() {
   const tools: [string, string, string][] = [
-    ["Flume", "Collects log lines; two agents", "Ready-made sources and sinks for logs: configured, not coded."],
-    ["Kafka", "Buffer between collection and storage", "Absorbs spikes; the writer can stop and resume from its offset."],
-    ["HDFS", "Raw storage, one folder per day", "Distributed, fault-tolerant storage for large append-only files."],
+    ["Flume", "Collects the raw log lines", "Ready-made sources and sinks for logs: configured, not coded. Its HDFS files are the exact history."],
+    ["Kafka", "Structured events, two consumers", "Durable and replayable: the HDFS writer and Spark read the same topic at their own pace."],
+    ["Spark", "Speed layer on the Kafka topic", "Structured Streaming: per-minute traffic and alerts every 5 seconds, written to HDFS and MySQL."],
+    ["HDFS", "Raw, event, speed and result zones", "Distributed, fault-tolerant storage for large append-only files."],
     ["Hive", "SQL over HDFS", "Queries in SQL, executed as MapReduce jobs on YARN."],
-    ["Sqoop", "MySQL ↔ HDFS transfers", "Bulk import and export in both directions, as MapReduce jobs."],
-    ["MySQL", "Results, reference data, metastore", "The reporting database a company would actually query."],
+    ["Sqoop", "MySQL ↔ HDFS transfers", "Reference import and result export, as MapReduce jobs."],
+    ["MySQL", "Results, reference, speed tables", "The reporting database a company would actually query."],
     ["Docker", "Packaging of every service", "One command reproduces the whole cluster on any machine."],
   ];
   return contentPage(
-    "Architecture A · Sequential",
-    `<div class="figure">${architectureSvg("sequential")}<p class="caption">Figure 1 — Data flow. Solid arrows carry log data;
+    "Architecture",
+    `<div class="figure">${architectureSvg()}<p class="caption">Figure 1 — The pipeline. Solid arrows carry log data;
      dashed arrows carry the status_codes reference table, which Sqoop imports from MySQL into HDFS for the Hive join.</p></div>
      <h3 class="label-light">Why each tool</h3>
      <table class="data"><tr><th>Tool</th><th>Role</th><th>Why it is here</th></tr>
      ${tools.map(([t, role, why]) => `<tr><td><strong>${t}</strong></td><td>${role}</td><td>${why}</td></tr>`).join("")}
-     </table>
-     <h3 class="label-light">Why Flume, then Kafka, then Flume again</h3>
-     <p>Writing straight from one Flume agent to HDFS would couple collection to storage: if HDFS is slow or down,
-     collection stops. With Kafka in the middle, agent 1 keeps publishing while agent 2 is stopped, and agent 2
-     catches up from its committed offset when it returns. Both agents stay pure configuration, with no custom code.</p>`,
+     </table>`,
   );
 }
 
-
-function architectureParallel() {
-  return contentPage("Architecture B · Parallel",
-    `<div class="figure">${architectureSvg("parallel")}<p class="caption">Figure 2 - Three independent ingestion branches.</p></div>
-     <p>A keeps the course's Flume → Kafka → Flume chain. B explores independent collectors on the same cluster,
-     dataset and analytical queries. Choose with <code>ARCH=sequential|parallel</code> or the dashboard switch.</p>
-     <h3 class="label-light">Three branches, three responsibilities</h3>
-     <ul class="clean"><li>Flume TAILDIR writes the original lines directly to <code>/data/nasa/raw/flume</code>.</li>
-     <li>The Python producer publishes JSON events to <code>web-events</code>. The HDFS writer publishes closed
-     files before committing Kafka offsets. Retries can duplicate events; Hive's <code>kafka_events_unique</code>
-     view deduplicates by stable <code>event_id</code>.</li>
-     <li>Sqoop imports <code>status_codes</code> into a staging directory, checks it, then swaps it into place.</li></ul>
+function architectureBranches() {
+  return contentPage("Three branches, one pipeline",
+    `<p>The three ingestion branches start together and each one ends in HDFS. Kafka is not a detour: it is
+     linked to HDFS by its writer, and read a second time by Spark.</p>
+     <ul class="clean"><li><strong>Flume</strong> TAILDIR writes the original lines directly to <code>/data/nasa/raw/flume</code>.
+     This is the batch layer's input.</li>
+     <li><strong>Kafka</strong>: the Python producer publishes one JSON event per line to <code>web-events</code>. The HDFS
+     writer publishes closed files before committing Kafka offsets. Retries can duplicate events; Hive's
+     <code>kafka_events_unique</code> view deduplicates by stable <code>event_id</code>.</li>
+     <li><strong>Sqoop</strong> imports <code>status_codes</code> into a staging directory, checks it, then swaps it into place.</li></ul>
      <p>Event IDs identify the source file and line number, so repeated requests remain distinct. Process locks
-     prevent two producers or replayers from reusing the same checkpoint. The control API locks resources per
-     architecture and allows independent B branches to overlap. Compare takes both architectures' resources.</p>
-     <p>B uses separate HDFS folders and Hive/MySQL database <code>weblogs_parallel</code>. The raw Flume branch
-     remains the canonical source for the same six analytical tables.</p>`);
+     prevent two producers or replayers from reusing the same checkpoint. The control API locks resources and allows
+     the independent branches to overlap.</p>
+     <p>Folders, topic and the Hive/MySQL database <code>weblogs_parallel</code> are defined once in
+     <code>config/architectures.json</code>. The raw Flume branch is the source of the six analytical tables;
+     <code>make verify-ingestion</code> reconciles every branch with its own source before the analysis.</p>
+     <h3 class="label-light">Why this shape</h3>
+     <p>Before the speed layer, Kafka only made a second copy of the same lines that nobody used. Now Flume gives
+     the exact history, Kafka and Spark give answers within seconds, and Sqoop brings the reference data. The cost
+     is one more container: Spark adds about 1 to 2 GB of memory.</p>`);
 }
 
-function comparison(r: Report) {
-  return contentPage("Comparison",
-    `<p>A runs first, then B, at the same replay rate on the complete dataset. They share one DataNode, so the
-     test measures this laptop rather than distributed production capacity.</p>${comparisonTable(r)}
-     <h3 class="label-light">Time until every line is written</h3>${comparisonChart(r)}
-     <p>Lower is faster. File closure is reported separately: A rolls after 300 s or 60 s idle; B's direct Flume
-     sink uses 30 s or 10 s idle. File closure alone would therefore favour B's configuration.</p>
-     <p>B also persists structured JSON events. A imports the reference table during its batch part; B imports it
-     during ingestion and reconciles its branches before analysis. The timings cover each configured architecture.</p>
-     <p>A demonstrates buffering in one chain. B permits independent ingestion and reconciliation, at the cost of
-     custom code, checkpoints and deduplication. Neither design establishes exactly-once physical delivery.</p>`);
+function speedLayer() {
+  return contentPage("The speed layer",
+    `<p>Spark Structured Streaming (service <code>spark-streaming</code>, <code>scripts/spark_speed_layer.py</code>)
+     is the second consumer of <code>web-events</code>. Every 5 seconds it takes a micro-batch, computes per-minute
+     traffic (hits, 4xx, 404, 5xx, bytes) and requests per host and minute, and writes them to two places.</p>
+     <table class="data"><tr><th>Destination</th><th>Content</th><th>Used by</th></tr>
+     <tr><td>HDFS Parquet, <code>/data/nasa/streaming/spark/…/batch_id=N</code></td><td>The record, one folder per micro-batch</td><td>Hive tables <code>speed_minute_parts</code>, views <code>speed_traffic_minute</code> and <code>speed_alerts</code></td></tr>
+     <tr><td>MySQL <code>speed_minute</code>, <code>speed_host_minute</code>, <code>speed_alerts</code>, <code>speed_batches</code></td><td>Serving tables</td><td>The dashboard's Real-time page</td></tr></table>
+     <h3 class="label-light">Alerts</h3>
+     <p>Four rules, each above the 99.9th percentile of a normal NASA minute (217 hits, 13 not-found, 16 requests
+     from one host): <code>traffic_spike</code> at 300 hits per minute or more, <code>not_found_burst</code> at 15
+     404s, <code>server_errors</code> at 3 5xx, <code>host_flood</code> at 30 requests from one host.</p>
+     <h3 class="label-light">Exactly once</h3>
+     <p>Each micro-batch writes its own <code>batch_id</code> folder, overwritten if Spark replays it. MySQL skips a
+     <code>batch_id</code> already in <code>speed_batches</code>, and that row is written in the same transaction as
+     the totals. The read position is the Spark checkpoint in HDFS, kept across <code>make reset</code>. On its first
+     start Spark begins at the end of the topic, so the producer waits until Spark is listening.</p>
+     <h3 class="label-light">Two independent paths must agree</h3>
+     <p>At the end of <code>make hive-analysis</code>, <code>hive/05_speed_check.sql</code> compares, for every day,
+     Spark's totals (from Kafka) with Hive's <code>hits_per_day</code> (from Flume's raw lines). The pipeline fails
+     unless they are equal. <code>make verify-ingestion</code> also waits until Spark has processed the topic to its end.</p>`);
 }
 
 function implementationDocker() {
   const services: [string, string][] = [
-    ["mysql", "MySQL 8: status_codes, result tables, Hive metastore"],
-    ["zookeeper, kafka", "Kafka broker in ZooKeeper mode; kafka-init creates both topics"],
+    ["mysql", "MySQL 8: status_codes, result tables, speed tables, Hive metastore"],
+    ["zookeeper, kafka", "Kafka broker in ZooKeeper mode; kafka-init creates the topic web-events"],
     ["hadoop", "HDFS NameNode + DataNode, YARN, MapReduce history server"],
     ["hive", "Hive metastore and HiveServer2 (JDBC on port 10000)"],
-    ["flume-agent1, flume-agent2", "The two Flume agents, each restartable on its own"],
-    ["flume-direct, kafka-producer, kafka-hdfs-writer", "B: independent raw and structured ingestion"],
+    ["flume-direct", "Flume branch: raw lines into HDFS"],
+    ["kafka-producer, kafka-hdfs-writer", "Kafka branch: JSON events in, JSON files in HDFS out"],
+    ["spark-streaming", "Speed layer: Spark 3.5.9 in local mode, second consumer of the topic (about 1 to 2 GB of memory)"],
     ["replayer", "Replays the 1995 logs as live traffic, resumable"],
     ["client", "Tool container for Sqoop, HDFS and beeline commands"],
-    ["dashboard", "Next.js web UI: results and live pipeline state"],
+    ["dashboard", "Next.js web UI: results, real-time page and live pipeline state"],
   ];
   return contentPage(
     "Implementation",
     `<h3 class="label-light">One command, the same cluster everywhere</h3>
      <p>The VM installation of the course was replaced by Docker Compose: the Dockerfile and configuration files are
-     the documented installation. Hadoop 3.3.6, Hive 3.1.3, Flume 1.9.0 and Sqoop 1.4.7 share the same libraries
-     and settings, so they are built into a <strong>single image</strong> and each container starts it in a
+     the documented installation. Hadoop 3.3.6, Hive 3.1.3, Flume 1.9.0, Sqoop 1.4.7 and Spark 3.5.9 share the same
+     libraries and settings, so they are built into a <strong>single image</strong> and each container starts it in a
      different role. Downloads are verified against the official Apache checksums.</p>
      <table class="data"><tr><th>Service</th><th>Content</th></tr>
      ${services.map(([s, c]) => `<tr><td class="mono">${s}</td><td>${c}</td></tr>`).join("")}</table>
@@ -153,37 +166,33 @@ function implementationDocker() {
      <ul class="clean">
        <li><strong>Replay.</strong> A Python script appends the 1995 lines to <code>access.log</code> at a set rate
            and saves its position, so a restart neither duplicates nor skips lines.</li>
-       <li><strong>Agent 1</strong> tails the file (TAILDIR), extracts the request time of each line into the event
-           header with a <code>regex_extractor</code> interceptor, and publishes to Kafka with <code>acks=all</code>.</li>
-       <li><strong>Agent 2</strong> consumes the topic and writes HDFS files under
-           <code>/data/weblogs/dt=YYYY-MM-DD</code>, using that header: data lands in the day it happened, not the
-           day it was ingested. Files in progress start with <code>_</code>, which Hive ignores.</li>
-       <li>Both agents use <strong>file channels</strong>, so buffered events survive a restart.</li>
+       <li><strong>Flume</strong> tails the file (TAILDIR), reads the request time of each line into the event header
+           and writes HDFS files under <code>/data/nasa/raw/flume/dt=YYYY-MM-DD</code>: data lands in the day it
+           happened, not the day it was ingested. Files in progress start with <code>_</code>, which Hive ignores.</li>
+       <li><strong>Kafka branch.</strong> The producer publishes JSON events with <code>acks=all</code>; the writer
+           stores them in HDFS; Spark computes the live figures.</li>
+       <li>The Flume agent uses a <strong>file channel</strong>, so buffered events survive a restart.</li>
      </ul>`,
   );
 }
 
 function recovery(r: Report) {
-  const rows = r.recovery.map((record, i) => {
-    const first = record.samples[0];
-    const last = record.samples[record.samples.length - 1];
-    return `<tr><td>${i === 0 ? "A · Flume 2 stopped" : "B · Kafka writer paused"}</td>
-      <td>${int(record.samples[1].lag)}</td><td>${int(last.lag)}</td>
-      <td>${int((last.replayed ?? last.produced ?? 0) - (first.replayed ?? first.produced ?? 0))}</td><td>PASS</td></tr>`;
-  }).join("");
+  const record = r.recovery[0];
+  const first = record.samples[0];
+  const last = record.samples[record.samples.length - 1];
   return contentPage("Recovery after a writer outage",
-    `<p>These probes use partial datasets with unread events, so ingestion can continue during the outage.
-     The full comparison is a separate fresh run.</p>
-     <table class="data"><tr><th>Scenario</th><th>Lag during outage</th><th>Final lag</th><th>Additional source events</th><th>Result</th></tr>${rows}</table>
-     <h3 class="label-light">A · Sequential</h3><p>Flume 2 is stopped for 60 seconds while Flume 1 continues to
-     publish. Kafka holds the pending messages. After restart, the consumer catches up, HDFS files close and
-     the complete source/HDFS line counts match.</p>
-     <h3 class="label-light">B · Parallel</h3><p>The Kafka HDFS writer is paused for 20 seconds. The producer keeps
-     publishing; after resume, committed offsets catch up and source reconciliation passes for every branch.</p>
-     <h3 class="label-light">What this establishes</h3><p>The tests demonstrate buffering and restart recovery on
-     one machine. Physical delivery remains at least once: a timed-out write can duplicate a batch. Raw counts
-     and content checks reject such a run; structured Kafka IDs support logical deduplication in Hive.</p>
-     <p class="small">Evidence records: ${r.recovery.map((record) => esc(record.run_id)).join("; ")}.</p>`);
+    `<p>This probe uses a partial dataset with unread events, so ingestion can continue during the outage.</p>
+     <table class="data"><tr><th>Scenario</th><th>Lag during outage</th><th>Final lag</th><th>Additional source events</th><th>Result</th></tr>
+     <tr><td>Kafka writer paused</td><td>${int(record.samples[1].lag)}</td><td>${int(last.lag)}</td>
+     <td>${int((last.replayed ?? last.produced ?? 0) - (first.replayed ?? first.produced ?? 0))}</td><td>PASS</td></tr></table>
+     <p>The Kafka HDFS writer is paused for 20 seconds. The producer keeps publishing; after resume, committed
+     offsets catch up and source reconciliation passes for every branch. The speed layer is a separate consumer
+     group with its own checkpoint, so a paused writer does not stop it.</p>
+     <h3 class="label-light">What this establishes</h3><p>The test demonstrates buffering and restart recovery on
+     one machine. Physical delivery to HDFS remains at least once: a timed-out write can duplicate a batch. Raw
+     counts and content checks reject such a run; structured Kafka IDs support logical deduplication in Hive. The
+     speed layer's MySQL totals are exactly once, thanks to the <code>batch_id</code> rule.</p>
+     <p class="small">Evidence record: ${esc(record.run_id)}.</p>`);
 }
 
 function implementationAnalysis() {
@@ -218,10 +227,12 @@ function implementationDashboard() {
     `     <h3 class="label-light">Observability</h3>
      <p>A web dashboard (Next.js, shadcn/ui), running as one more container, reads the result tables from MySQL and
      probes every stage live: replay progress, Flume counters, Kafka offsets and consumer lag, HDFS partitions and
-     YARN jobs. It can also run the pipeline: its buttons call a small control API in the client container, which
-     runs the same scripts as the <code>make</code> targets, with resource locks per architecture, and streams their output back to
-     the page.</p>
-     ${figure("assets/screenshots/dashboard-pipeline.png", "Figure 3 — Live pipeline page: run controls, the flow of every stage and the current run.")}`,
+     YARN jobs; the live flow shows every stage from the MySQL source and the Sqoop import to the Sqoop export and the dashboard, with Kafka's two consumers. It can also run the pipeline: its buttons call a small
+     control API in the client container, which runs the same scripts as the <code>make</code> targets, with resource
+     locks, and streams their output back to the page.</p>
+     <p>The <strong>Real-time</strong> page reads the speed tables in MySQL: key figures, traffic per minute, the
+     alerts and a table comparing the speed layer with the batch layer.</p>
+     <div class="figure comparison-evidence"><img src="${asset("assets/screenshots/dashboard-pipeline-parallel.png")}" alt="Live pipeline flow" style="max-height:100mm"><p class="caption">Figure 3 — Live pipeline page: the flow of every stage.</p></div>`,
   );
 }
 
@@ -240,8 +251,8 @@ function results(r: Report) {
      <h3 class="label-light">No data lost</h3>
      <p>Every line replayed reached HDFS: ${int(r.quality.total)} lines in, ${int(r.quality.total)} lines stored
      in ${r.hdfs.partitions} HDFS partitions (${bytes(r.hdfs.bytes)}): ${r.daily.length} days of traffic, plus one
-     folder for the single line that has no date (the last line of the July file, cut off), which Flume files under
-     its arrival day instead of dropping it. The check compares the number of lines in the replayed file with the
+     folder (<code>dt=1970-01-01</code>) for the single line that has no date (the last line of the July file, cut
+     off), which Flume keeps instead of dropping it. The speed layer agrees: for every day, Spark's totals equal Hive's. The check compares the number of lines in the replayed file with the
      number of lines in HDFS (<code>make counts</code>).</p>
      <h3 class="label-light">Traffic per hour of day</h3>
      <div class="figure">${hourlyChart(r.hourly, { height: 230 })}<p class="caption">Figure 4 — Average requests per
@@ -315,12 +326,13 @@ function conclusion(r: Report) {
   return contentPage(
     "Conclusion",
     `<p class="narrow">The project meets its requirements: ${int(r.quality.total)} log lines were collected by Flume,
-     buffered by Kafka, stored in HDFS without loss, analysed with Hive and exported with Sqoop, which also imported
-     the reference data. The four questions have clear answers, and the same commands reproduce them on any
-     machine with Docker.</p>
+     collected by Flume, carried by Kafka, stored in HDFS without loss, analysed with Hive and exported with Sqoop,
+     which also imported the reference data. Spark adds live per-minute figures and alerts from the same Kafka
+     topic, and the pipeline checks that the speed layer and the batch layer report the same traffic. The four
+     questions have clear answers, and the same commands reproduce them on any machine with Docker.</p>
      <p class="narrow">On a real cluster, the next steps would be more DataNodes with a replication factor of 3,
-     several Kafka brokers, a columnar format such as ORC or Parquet for the result tables, and a scheduler to run
-     the batch part every night.</p>
+     several Kafka brokers, a Spark cluster instead of local mode, a columnar format such as ORC or Parquet for the
+     result tables, and a scheduler to run the batch part every night.</p>
      <p class="quote-mark">&ldquo;</p>
      <p class="narrow">The most useful lesson was how much reliability comes from small decisions: an offset file,
      a file channel, an explicit column list. Each one turned a silent failure into a guarantee we could check.</p>
@@ -337,32 +349,35 @@ function annexRun() {
 cd weblogs-pipeline
 make data        # download the NASA logs (36 MB)
 make build       # build the images (first time only)
-make up          # start MySQL, Hadoop, Kafka, both Flume agents, Hive and the dashboard
-make db-init     # ensure both reporting databases exist
-make replay ARCH=sequential    # replay A as live traffic
-make counts ARCH=sequential    # source lines = HDFS lines
-make pipeline ARCH=sequential  # Hive, Sqoop import, analysis, export
-make mysql ARCH=sequential     # query A; dashboard on http://localhost:3030</pre>
+make up          # start MySQL, Hadoop, Kafka, Spark, Flume, Hive and the dashboard
+make db-init     # ensure the reporting database and its speed tables exist
+make replay      # start the three ingestion branches
+make speed-layer # live Spark figures: latest minutes and alerts
+make counts      # source lines = HDFS lines
+make pipeline    # tables, branch checks, Hive analysis + speed check, export
+make mysql       # query the results; dashboard on http://localhost:3030</pre>
      <h3 class="label-light">Key configuration: event time as partition key</h3>
-     <pre class="code">agent1.sources.tail.interceptors.eventtime.type  = regex_extractor
-agent1.sources.tail.interceptors.eventtime.regex = \\\\[(\\\\d{2}/[A-Za-z]{3}/\\\\d{4}:\\\\d{2}:\\\\d{2}:\\\\d{2})
-agent1.sources.tail.interceptors.eventtime.serializers.millis.name    = timestamp
-agent1.sources.tail.interceptors.eventtime.serializers.millis.pattern = dd/MMM/yyyy:HH:mm:ss
-agent1.sinks.kafka.useFlumeEventFormat = true          # headers travel through Kafka
-agent2.sinks.hdfs.hdfs.path = hdfs://hadoop:9000/data/weblogs/dt=%Y-%m-%d</pre>
-     ${figure("assets/screenshots/terminal-counts.png", "Figure 7 — No-loss check after the full replay.")}`,
+     <pre class="code">direct.sources.tail.interceptors.eventtime.type  = regex_extractor
+direct.sources.tail.interceptors.eventtime.regex = \\[(\\d{2}/[A-Za-z]{3}/\\d{4}:\\d{2}:\\d{2}:\\d{2})
+direct.sources.tail.interceptors.eventtime.serializers.millis.name    = timestamp
+direct.sources.tail.interceptors.eventtime.serializers.millis.pattern = dd/MMM/yyyy:HH:mm:ss
+direct.sinks.hdfs.hdfs.path = hdfs://hadoop:9000/data/nasa/raw/flume/dt=%Y-%m-%d</pre>
+     ${optionalFigure("assets/screenshots/no-loss-check.png", "Figure 7 — No-loss check after the full replay.")}`,
   );
 }
 
 function annexTerminal() {
+  const shots = [
+    optionalFigure("assets/screenshots/cluster-status.png", "Figure 8 — Long-running services are healthy; one-shot jobs have completed."),
+    `<div class="two-col">
+       ${optionalFigure("assets/screenshots/hdfs-zones.png", "Figure 9 — make hdfs-ls: one HDFS folder per day of traffic.")}
+       ${optionalFigure("assets/screenshots/kafka-events.png", "Figure 10 — make topic-peek: JSON events in the Kafka topic.")}
+     </div>`,
+  ];
   return contentPage(
     "Annex B — From the terminal",
     `<p>Real output of the <code>make</code> targets after the full run, captured by <code>make screenshots</code>.</p>
-     ${figure("assets/screenshots/terminal-status.png", "Figure 8 — Long-running services are healthy; one-shot jobs have completed.")}
-     <div class="two-col">
-       ${figure("assets/screenshots/terminal-hdfs.png", "Figure 9 — make hdfs-ls: one HDFS folder per day of traffic.")}
-       ${figure("assets/screenshots/terminal-topic.png", "Figure 10 — make topic-peek: messages in the Kafka topic, with their timestamp header.")}
-     </div>`,
+     ${shots.join("")}`,
   );
 }
 
@@ -374,18 +389,18 @@ function annexTerminalResults() {
   );
 }
 
-function annexWeb() {
+function annexTerminalSpeed() {
   return contentPage(
-    "Annex C — From the web",
-    `${figure("assets/screenshots/dashboard-run.png", "Figure 13 — Live pipeline page while the Hive analysis runs, started from the browser.")}`,
+    "Annex B — From the terminal (continued)",
+    optionalFigure("assets/screenshots/terminal-speed.png", "Figure 13 — make speed-layer: the latest minutes and alerts written by Spark."),
   );
 }
 
 function annexWebMore() {
   return contentPage(
-    "Annex C — From the web (continued)",
+    "Annex C — From the web",
     `<div class="two-col">
-       ${figure("assets/screenshots/hdfs-browser.png", "Figure 14 — Day partitions in the HDFS NameNode browser.")}
+       ${optionalFigure("assets/screenshots/hdfs-raw-zone.png", "Figure 14 — Day partitions in the HDFS NameNode browser.")}
        ${figure("assets/screenshots/dashboard-dark.png", "Figure 15 — Overview page in dark mode.")}
      </div>
      ${figure("assets/screenshots/yarn-apps.png", "Figure 16 — MapReduce jobs of Hive and Sqoop in the YARN ResourceManager.")}`,
@@ -397,6 +412,16 @@ function annexAnalytics() {
     figure("assets/screenshots/dashboard-analytics.png", "Figure 17 - Analytics page of the dashboard.", "comparison-evidence"));
 }
 
+function annexRealtime() {
+  return contentPage("Annex C - Real-time page",
+    figure("assets/screenshots/dashboard-realtime.png", "Figure 18 - Real-time page: the speed layer's figures and alerts.", "comparison-evidence"));
+}
+
+function annexRun2() {
+  return contentPage("Annex C - Live pipeline",
+    figure("assets/screenshots/dashboard-live-run.png", "Figure 19 - Live pipeline page while the Hive analysis runs, started from the browser.", "comparison-evidence"));
+}
+
 function closing(r: Report) {
   return page(
     `<p class="brand label-light">${esc(r.meta.institution)}</p>
@@ -406,38 +431,39 @@ function closing(r: Report) {
   );
 }
 
-function annexComparison() {
-  return contentPage("Annex D - Comparing and inspecting",
-    figure("assets/screenshots/dashboard-compare.png", "Figure 18 - Recorded A/B comparison and identical result tables.", "comparison-evidence"));
-}
-
 function annexExplorer() {
   return contentPage("Annex D - Data explorer",
-    figure("assets/screenshots/dashboard-explorer.png", "Figure 19 - Architecture B in the HDFS data explorer.", "comparison-evidence"));
+    figure("assets/screenshots/dashboard-explorer.png", "Figure 20 - The HDFS data explorer.", "comparison-evidence"));
 }
 
 function annexParallel() {
-  return contentPage("Annex D - Parallel ingestion checks",
-    figure("assets/screenshots/dashboard-pipeline-parallel.png", "Figure 20 - The three branches of B. Tool counters include earlier runs; comparison measurements use per-run deltas.", "comparison-evidence"));
+  return contentPage("Annex D - Ingestion checks",
+    figure("assets/screenshots/dashboard-pipeline-parallel.png", "Figure 21 - The data flow of the pipeline. Tool counters include earlier runs; per-run measurements use deltas.", "comparison-evidence"));
 }
 
-function annexComparisonTerminal() {
-  return contentPage("Annex D - Comparison evidence",
-    `${figure("assets/screenshots/terminal-compare.png", "Figure 21 - Stored full comparison measurements.")}
-     ${figure("assets/screenshots/terminal-verify.png", "Figure 22 - Source reconciliation for all three branches.")}`);
+function annexVerify() {
+  return contentPage("Annex D - Ingestion checks (continued)",
+    optionalFigure("assets/screenshots/verify-ingestion.png", "Figure 22 - Source reconciliation for the Flume, Kafka, Spark and Sqoop branches."));
 }
 
 export async function reportHtml(r: Report): Promise<string> {
   const pages = [
     cover(r), contents(r),
     divider(0), introduction(r),
-    divider(1), architecture(), architectureParallel(),
-    divider(2), implementationDocker(), implementationAnalysis(), implementationDashboard(),
+    divider(1), architecture(), architectureBranches(), speedLayer(),
+    divider(2), implementationDocker(), implementationAnalysis(), implementationDashboard(), recovery(r),
     divider(3), results(r), resultsTables(r),
-    divider(4), comparison(r), recovery(r),
-    divider(5), assessment(),
-    divider(6), conclusion(r), annexRun(), annexTerminal(), annexTerminalResults(), annexWeb(), annexWebMore(), annexAnalytics(),
-    annexComparison(), annexExplorer(), annexParallel(), annexComparisonTerminal(), closing(r),
+    divider(4), assessment(),
+    divider(5), conclusion(r), annexRun(),
+    ...(hasAsset("assets/screenshots/cluster-status.png") || hasAsset("assets/screenshots/hdfs-zones.png") || hasAsset("assets/screenshots/kafka-events.png") ? [annexTerminal()] : []),
+    annexTerminalResults(),
+    ...(hasAsset("assets/screenshots/terminal-speed.png") ? [annexTerminalSpeed()] : []),
+    annexWebMore(), annexAnalytics(),
+    ...(hasAsset("assets/screenshots/dashboard-realtime.png") ? [annexRealtime()] : []),
+    ...(hasAsset("assets/screenshots/dashboard-live-run.png") ? [annexRun2()] : []),
+    annexExplorer(), annexParallel(),
+    ...(hasAsset("assets/screenshots/verify-ingestion.png") ? [annexVerify()] : []),
+    closing(r),
   ];
   return htmlDocument(r.meta.title, "report/report.css", pages.join("\n"));
 }

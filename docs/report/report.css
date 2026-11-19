@@ -31,7 +31,7 @@
 .cover .brand { margin-top: 112mm; font-size: 13pt; }
 .cover h1 { font-size: 40pt; margin-top: 7mm; }
 .cover .subtitle { margin-top: 6mm; max-width: 140mm; font-size: 11pt; color: var(--navy); }
-.cover .authors { margin-top: 9mm; font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 13pt; color: var(--navy); }
+.cover .authors { margin: 9mm auto 0; max-width: 150mm; line-height: 1.5; font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 13pt; color: var(--navy); }
 .cover .meta { margin-top: 3mm; font-size: 9.5pt; color: var(--muted); }
 .cover .date { position: absolute; bottom: 21mm; left: 0; right: 0; font-family: var(--display); font-stretch: 112%; font-weight: 700; color: var(--navy); }
 

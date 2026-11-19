@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Architecture B: reconcile each ingestion branch with its source. Unknown never passes.
+"""Reconcile each ingestion branch with its source. Unknown never passes.
 
     flume  the lines in closed HDFS files are exactly the lines of the live log
     kafka  every acknowledged event ID is in HDFS once or more, and the consumer lag is 0
+    spark  the speed layer has processed the topic up to its end (Spark checkpoint)
     sqoop  the HDFS reference copy has exactly the rows of the MySQL table
 """
 import argparse
@@ -56,10 +57,31 @@ def lines(zone):
                 raise ValueError(f'Cannot read HDFS {zone} batch')
 
 
+def spark_offsets(checkpoint, topic):
+    """Kafka offsets after the last micro-batch Spark committed: {partition: next offset}."""
+    def listing(folder):
+        rows = subprocess.run(['hdfs', 'dfs', '-ls', f'{checkpoint}/{folder}'], check=True,
+                              capture_output=True, text=True).stdout.splitlines()
+        return {int(Path(row.split()[-1]).name) for row in rows
+                if row.startswith('-') and Path(row.split()[-1]).name.isdigit()}
+    committed = listing('commits')
+    if not committed:
+        raise ValueError('speed layer has committed no micro-batch yet')
+    batch = max(committed)
+    text = subprocess.run(['hdfs', 'dfs', '-cat', f'{checkpoint}/offsets/{batch}'], check=True,
+                          capture_output=True, text=True).stdout
+    # v1, the batch metadata, then one JSON line per source.
+    for line in text.splitlines()[2:]:
+        offsets = json.loads(line)
+        if topic in offsets:
+            return {int(p): o for p, o in offsets[topic].items()}
+    raise ValueError(f'topic {topic} not in Spark offsets of batch {batch}')
+
+
 def verify():
     report = {'run_id': time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()),
               'observed_at': time.time(), 'source': 'closed HDFS files, checkpoints and MySQL',
-              'flume': None, 'kafka': None, 'sqoop': None, 'errors': []}
+              'flume': None, 'kafka': None, 'spark': None, 'sqoop': None, 'errors': []}
     try:
         expected = int(Path(f'{LIVE_LOG}.offset').read_text())
         source = Counter()
@@ -121,6 +143,17 @@ def verify():
             raise ValueError('Kafka logical event IDs do not match acknowledged source')
     except Exception as exc:
         report['errors'].append(f'kafka: {exc}')
+    try:
+        processed = spark_offsets(ARCH['speedCheckpoint'], ARCH['kafkaTopic'])
+        ends = {p['partition']: p['end'] for p in (report['kafka'] or {}).get('offsets', [])}
+        if not ends:
+            raise ValueError('Kafka end offsets unknown')
+        lag = sum(max(0, end - processed.get(partition, 0)) for partition, end in ends.items())
+        report['spark'] = dict(processed_offsets=processed, lag=lag)
+        if lag:
+            raise ValueError(f'speed layer still {lag} events behind the topic')
+    except Exception as exc:
+        report['errors'].append(f'spark: {exc}')
     try:
         import pymysql
         with pymysql.connect(host=os.environ.get('MYSQL_HOST', 'mysql'),

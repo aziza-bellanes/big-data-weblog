@@ -1,10 +1,12 @@
 name: weblogs-pipeline
 
-# Two architectures share this cluster, each with its own services, HDFS folders, Hive
-# database and MySQL database (config/architectures.json):
-#   A · Sequential  flume-agent1 -> Kafka "web-logs" -> flume-agent2 -> HDFS
-#   B · Parallel    flume-direct -> HDFS, producer -> Kafka "web-events" -> kafka-hdfs-writer
-#                   -> HDFS, and a Sqoop import, side by side
+# Three ingestion branches start together and each one ends in HDFS
+# (folders, topic and databases in config/architectures.json):
+#   Flume   replayer -> live log -> flume-direct -> HDFS raw lines (batch layer, Hive)
+#   Kafka   kafka-producer -> topic "web-events" -> kafka-hdfs-writer -> HDFS JSON events
+#                                                -> spark-streaming   -> HDFS Parquet + MySQL
+#                                                   (speed layer: per-minute figures, alerts)
+#   Sqoop   MySQL status_codes -> HDFS reference data
 
 # Settings shared by every container built from docker/bigdata.
 x-bigdata: &bigdata
@@ -13,9 +15,6 @@ x-bigdata: &bigdata
   restart: unless-stopped
   environment:
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    # Topic of architecture A, read by its Flume agents. Scripts take each
-    # architecture's topic from config/architectures.json.
-    KAFKA_TOPIC: web-logs
   volumes:
     - ./:/opt/project:ro
 
@@ -61,8 +60,9 @@ services:
       - ./:/opt/project:ro
       - hadoop-data:/var/lib/hadoop
     healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/hadoop.ready"]
+      test: ["CMD-SHELL", "test -f /tmp/hadoop.ready && python3 /opt/project/scripts/cluster_ready.py"]
       interval: 10s
+      timeout: 8s
       start_period: 60s
       retries: 18
 
@@ -94,7 +94,7 @@ services:
       start_period: 20s
       retries: 12
 
-  # One topic per architecture: web-logs (A, Flume events), web-events (B, JSON events).
+  # Topic of the Kafka branch: one JSON event per log line.
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
     depends_on:
@@ -104,20 +104,17 @@ services:
       - bash
       - -c
       - |
-        for topic in web-logs web-events; do
-          kafka-topics --bootstrap-server=kafka:9092 --create --if-not-exists \
-            --topic="$$topic" --partitions=3 --replication-factor=1
-        done
+        kafka-topics --bootstrap-server=kafka:9092 --create --if-not-exists \
+          --topic=web-events --partitions=3 --replication-factor=1
 
   # ---- Ingestion -------------------------------------------------------------
-  # Replays the NASA logs into the live log of architecture ARCH (make replay ARCH=...).
+  # Replays the NASA logs into the live log tailed by Flume (make replay).
   replayer:
     <<: *bigdata
     command: ["replayer"]
     restart: "no"
     profiles: [replay]
     environment:
-      ARCH: ${ARCH:-parallel}
       REPLAY_RATE: ${REPLAY_RATE:-500}
       REPLAY_LIMIT: ${REPLAY_LIMIT:-0}
     volumes:
@@ -125,30 +122,7 @@ services:
       - ./data/raw:/data/input:ro
       - live-logs:/data/live
 
-  # A · Sequential
-  flume-agent1:
-    <<: *bigdata
-    command: ["flume", "agent1", "/opt/project/config/flume/agent1-log-to-kafka.conf"]
-    depends_on:
-      kafka-init: { condition: service_completed_successfully }
-    volumes:
-      - ./:/opt/project:ro
-      - live-logs:/data/live:ro
-      - flume-agent1-state:/var/lib/flume
-    healthcheck: *flume-healthcheck
-
-  flume-agent2:
-    <<: *bigdata
-    command: ["flume", "agent2", "/opt/project/config/flume/agent2-kafka-to-hdfs.conf"]
-    depends_on:
-      kafka-init: { condition: service_completed_successfully }
-      hadoop: { condition: service_healthy }
-    volumes:
-      - ./:/opt/project:ro
-      - flume-agent2-state:/var/lib/flume
-    healthcheck: *flume-healthcheck
-
-  # B · Parallel (the Kafka producer and the Sqoop import run in the client container)
+  # Flume and Kafka branches (the Sqoop import runs in the client container)
   flume-direct:
     <<: *bigdata
     command: ["flume", "direct", "/opt/project/config/flume/direct-to-hdfs.conf"]
@@ -171,6 +145,8 @@ services:
       REPLAY_LIMIT: ${REPLAY_LIMIT:-0}
     depends_on:
       kafka-init: { condition: service_completed_successfully }
+      # The speed layer starts at the end of the topic: it must listen before events arrive.
+      spark-streaming: { condition: service_healthy }
     volumes:
       - ./:/opt/project:ro
       - ./data/raw:/data/input:ro
@@ -183,6 +159,26 @@ services:
       kafka-init: { condition: service_completed_successfully }
       hadoop: { condition: service_healthy }
     healthcheck: *flume-healthcheck
+
+  # Second consumer of "web-events": Spark Structured Streaming computes per-minute
+  # traffic, errors and alerts while the run goes on, and writes them to HDFS (Parquet)
+  # and to MySQL for the dashboard (scripts/spark_speed_layer.py).
+  spark-streaming:
+    <<: *bigdata
+    command: ["spark-submit", "--master", "local[2]", "--driver-memory", "1g",
+              "--conf", "spark.driver.extraJavaOptions=-Duser.timezone=UTC",
+              "/opt/project/scripts/spark_speed_layer.py"]
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      hadoop: { condition: service_healthy }
+      mysql: { condition: service_healthy }
+    mem_limit: 2g
+    healthcheck:
+      # Healthy once the query has run its first trigger (its Kafka start is fixed).
+      test: ["CMD", "test", "-f", "/tmp/speed-layer.ready"]
+      interval: 10s
+      start_period: 60s
+      retries: 12
 
   # ---- Analysis and export ---------------------------------------------------
   hive:
@@ -211,7 +207,7 @@ services:
       - ./data/raw:/data/input:ro
       # Read-write so the dashboard can start a replay through the control API.
       - live-logs:/data/live
-      # Run and comparison records kept by the control API.
+      # Run records kept by the control API.
       - runs:/data/runs
       - ./artifacts:/opt/artifacts
     healthcheck:
@@ -246,6 +242,4 @@ volumes:
   kafka-data:
   live-logs:
   runs:
-  flume-agent1-state:
-  flume-agent2-state:
   flume-direct-state:

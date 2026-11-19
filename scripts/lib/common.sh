@@ -39,7 +39,7 @@ wait_for_tcp() {
 arch_env() {
     local exports
     exports=$(python3 "${PROJECT_HOME:-/opt/project}/scripts/architectures.py" env "${1:-${ARCH:-}}") \
-        || die "unknown architecture '${1:-${ARCH:-}}' (use parallel or sequential)"
+        || die "unknown architecture '${1:-${ARCH:-}}' (see config/architectures.json)"
     eval "$exports"
 }
 
@@ -61,6 +61,7 @@ beeline_run() {
         --hivevar db="$HIVE_DB" \
         --hivevar raw_dir="$RAW_DIR" \
         --hivevar events_dir="$EVENTS_DIR" \
+        --hivevar speed_dir="$SPEED_DIR" \
         --hivevar reference_dir="$REFERENCE_DIR" \
         --hivevar results_root="$RESULTS_ROOT" \
         -f "$file"

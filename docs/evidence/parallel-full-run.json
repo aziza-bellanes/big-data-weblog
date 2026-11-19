@@ -1,0 +1,2849 @@
+{
+ "id": "a0c1eb6ebd18",
+ "kind": "full-run",
+ "note": "Parallel pipeline (formerly architecture B) part of full run a0c1eb6ebd18, replay rate 5000 lines/s, full dataset. The other architecture measured in the same record was removed.",
+ "params": {
+  "rate": 5000,
+  "limit": 0,
+  "fresh": true
+ },
+ "status": "succeeded",
+ "createdAt": 1794938851758,
+ "endedAt": 1794942201440,
+ "parallel": {
+  "ingestion": {
+   "lines": 3461613,
+   "replaySeconds": 693.6,
+   "allWrittenSeconds": 703.6,
+   "allClosedSeconds": 711.2,
+   "linesPerSecond": 4920,
+   "peakKafkaLag": 162238,
+   "raw": {
+    "files": 59,
+    "bytes": 373056139,
+    "avgFileBytes": 6322985
+   },
+   "samples": [
+    {
+     "t": 2.0,
+     "replayed": 10000,
+     "inHdfs": 0,
+     "lag": 9319,
+     "produced": 9000,
+     "eventsInHdfs": 0
+    },
+    {
+     "t": 4.0,
+     "replayed": 20000,
+     "inHdfs": 11000,
+     "lag": 19357,
+     "produced": 19000,
+     "eventsInHdfs": 0
+    },
+    {
+     "t": 6.0,
+     "replayed": 30000,
+     "inHdfs": 11000,
+     "lag": 23882,
+     "produced": 29000,
+     "eventsInHdfs": 5535
+    },
+    {
+     "t": 8.0,
+     "replayed": 40000,
+     "inHdfs": 11000,
+     "lag": 33920,
+     "produced": 39000,
+     "eventsInHdfs": 5535
+    },
+    {
+     "t": 10.0,
+     "replayed": 50000,
+     "inHdfs": 30000,
+     "lag": 43943,
+     "produced": 49000,
+     "eventsInHdfs": 5535
+    },
+    {
+     "t": 12.0,
+     "replayed": 60000,
+     "inHdfs": 37000,
+     "lag": 24094,
+     "produced": 59500,
+     "eventsInHdfs": 35406
+    },
+    {
+     "t": 14.1,
+     "replayed": 70000,
+     "inHdfs": 62500,
+     "lag": 34133,
+     "produced": 69500,
+     "eventsInHdfs": 35406
+    },
+    {
+     "t": 16.1,
+     "replayed": 80000,
+     "inHdfs": 62500,
+     "lag": 44164,
+     "produced": 79500,
+     "eventsInHdfs": 35406
+    },
+    {
+     "t": 18.1,
+     "replayed": 90000,
+     "inHdfs": 62500,
+     "lag": 54192,
+     "produced": 89500,
+     "eventsInHdfs": 35406
+    },
+    {
+     "t": 20.1,
+     "replayed": 100000,
+     "inHdfs": 83500,
+     "lag": 64234,
+     "produced": 99500,
+     "eventsInHdfs": 35406
+    },
+    {
+     "t": 22.1,
+     "replayed": 110000,
+     "inHdfs": 88000,
+     "lag": 43752,
+     "produced": 109500,
+     "eventsInHdfs": 65922
+    },
+    {
+     "t": 24.1,
+     "replayed": 120000,
+     "inHdfs": 113500,
+     "lag": 53772,
+     "produced": 119500,
+     "eventsInHdfs": 65922
+    },
+    {
+     "t": 26.1,
+     "replayed": 130500,
+     "inHdfs": 113500,
+     "lag": 63910,
+     "produced": 129500,
+     "eventsInHdfs": 65922
+    },
+    {
+     "t": 28.1,
+     "replayed": 140500,
+     "inHdfs": 113500,
+     "lag": 23982,
+     "produced": 139500,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 30.1,
+     "replayed": 150500,
+     "inHdfs": 139000,
+     "lag": 34010,
+     "produced": 149500,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 32.1,
+     "replayed": 160500,
+     "inHdfs": 139000,
+     "lag": 44071,
+     "produced": 159500,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 34.2,
+     "replayed": 170500,
+     "inHdfs": 164500,
+     "lag": 54078,
+     "produced": 169500,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 36.2,
+     "replayed": 180500,
+     "inHdfs": 164500,
+     "lag": 64145,
+     "produced": 180000,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 38.2,
+     "replayed": 190500,
+     "inHdfs": 164500,
+     "lag": 74202,
+     "produced": 190000,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 40.2,
+     "replayed": 200500,
+     "inHdfs": 190000,
+     "lag": 84236,
+     "produced": 200000,
+     "eventsInHdfs": 115922
+    },
+    {
+     "t": 42.2,
+     "replayed": 210500,
+     "inHdfs": 190000,
+     "lag": 63335,
+     "produced": 210000,
+     "eventsInHdfs": 146872
+    },
+    {
+     "t": 44.2,
+     "replayed": 221000,
+     "inHdfs": 190000,
+     "lag": 73369,
+     "produced": 220000,
+     "eventsInHdfs": 146872
+    },
+    {
+     "t": 46.2,
+     "replayed": 231000,
+     "inHdfs": 194000,
+     "lag": 33396,
+     "produced": 230000,
+     "eventsInHdfs": 196872
+    },
+    {
+     "t": 48.2,
+     "replayed": 241000,
+     "inHdfs": 216500,
+     "lag": 43459,
+     "produced": 240000,
+     "eventsInHdfs": 196872
+    },
+    {
+     "t": 50.2,
+     "replayed": 251000,
+     "inHdfs": 239500,
+     "lag": 53486,
+     "produced": 250000,
+     "eventsInHdfs": 196872
+    },
+    {
+     "t": 52.2,
+     "replayed": 261000,
+     "inHdfs": 242500,
+     "lag": 63541,
+     "produced": 260000,
+     "eventsInHdfs": 196872
+    },
+    {
+     "t": 54.2,
+     "replayed": 271000,
+     "inHdfs": 242500,
+     "lag": 73561,
+     "produced": 270000,
+     "eventsInHdfs": 196872
+    },
+    {
+     "t": 56.2,
+     "replayed": 281000,
+     "inHdfs": 242500,
+     "lag": 46699,
+     "produced": 280500,
+     "eventsInHdfs": 233801
+    },
+    {
+     "t": 58.3,
+     "replayed": 290500,
+     "inHdfs": 268500,
+     "lag": 56699,
+     "produced": 290000,
+     "eventsInHdfs": 233801
+    },
+    {
+     "t": 60.3,
+     "replayed": 301000,
+     "inHdfs": 291500,
+     "lag": 66760,
+     "produced": 300500,
+     "eventsInHdfs": 233801
+    },
+    {
+     "t": 62.3,
+     "replayed": 311000,
+     "inHdfs": 296000,
+     "lag": 27664,
+     "produced": 310500,
+     "eventsInHdfs": 282932
+    },
+    {
+     "t": 64.3,
+     "replayed": 321000,
+     "inHdfs": 296000,
+     "lag": 37568,
+     "produced": 320000,
+     "eventsInHdfs": 282932
+    },
+    {
+     "t": 66.3,
+     "replayed": 331000,
+     "inHdfs": 296000,
+     "lag": 47737,
+     "produced": 330500,
+     "eventsInHdfs": 282932
+    },
+    {
+     "t": 68.3,
+     "replayed": 341000,
+     "inHdfs": 322500,
+     "lag": 57771,
+     "produced": 340500,
+     "eventsInHdfs": 282932
+    },
+    {
+     "t": 70.3,
+     "replayed": 351500,
+     "inHdfs": 345500,
+     "lag": 67796,
+     "produced": 350500,
+     "eventsInHdfs": 282932
+    },
+    {
+     "t": 72.3,
+     "replayed": 361500,
+     "inHdfs": 348500,
+     "lag": 47506,
+     "produced": 360500,
+     "eventsInHdfs": 313279
+    },
+    {
+     "t": 74.4,
+     "replayed": 371000,
+     "inHdfs": 348500,
+     "lag": 57221,
+     "produced": 370000,
+     "eventsInHdfs": 313279
+    },
+    {
+     "t": 76.4,
+     "replayed": 382000,
+     "inHdfs": 350500,
+     "lag": 67930,
+     "produced": 381000,
+     "eventsInHdfs": 313279
+    },
+    {
+     "t": 78.4,
+     "replayed": 392000,
+     "inHdfs": 375500,
+     "lag": 28220,
+     "produced": 391000,
+     "eventsInHdfs": 363044
+    },
+    {
+     "t": 80.6,
+     "replayed": 401000,
+     "inHdfs": 375500,
+     "lag": 37956,
+     "produced": 401000,
+     "eventsInHdfs": 363044
+    },
+    {
+     "t": 82.6,
+     "replayed": 412500,
+     "inHdfs": 375500,
+     "lag": 49060,
+     "produced": 412000,
+     "eventsInHdfs": 363044
+    },
+    {
+     "t": 84.6,
+     "replayed": 422500,
+     "inHdfs": 403000,
+     "lag": 59110,
+     "produced": 422000,
+     "eventsInHdfs": 363044
+    },
+    {
+     "t": 86.6,
+     "replayed": 432500,
+     "inHdfs": 408000,
+     "lag": 69131,
+     "produced": 432000,
+     "eventsInHdfs": 363044
+    },
+    {
+     "t": 88.6,
+     "replayed": 442500,
+     "inHdfs": 429500,
+     "lag": 48499,
+     "produced": 442000,
+     "eventsInHdfs": 393736
+    },
+    {
+     "t": 90.6,
+     "replayed": 453000,
+     "inHdfs": 429500,
+     "lag": 58530,
+     "produced": 452000,
+     "eventsInHdfs": 393736
+    },
+    {
+     "t": 92.6,
+     "replayed": 463000,
+     "inHdfs": 429500,
+     "lag": 68583,
+     "produced": 462000,
+     "eventsInHdfs": 393736
+    },
+    {
+     "t": 94.6,
+     "replayed": 473000,
+     "inHdfs": 455500,
+     "lag": 29937,
+     "produced": 472000,
+     "eventsInHdfs": 442451
+    },
+    {
+     "t": 96.6,
+     "replayed": 481500,
+     "inHdfs": 455500,
+     "lag": 38549,
+     "produced": 480500,
+     "eventsInHdfs": 442451
+    },
+    {
+     "t": 98.6,
+     "replayed": 493000,
+     "inHdfs": 483500,
+     "lag": 50015,
+     "produced": 492000,
+     "eventsInHdfs": 442451
+    },
+    {
+     "t": 100.7,
+     "replayed": 503000,
+     "inHdfs": 483500,
+     "lag": 28955,
+     "produced": 502500,
+     "eventsInHdfs": 473545
+    },
+    {
+     "t": 102.7,
+     "replayed": 513000,
+     "inHdfs": 483500,
+     "lag": 39019,
+     "produced": 512500,
+     "eventsInHdfs": 473545
+    },
+    {
+     "t": 104.7,
+     "replayed": 523000,
+     "inHdfs": 509500,
+     "lag": 49061,
+     "produced": 522500,
+     "eventsInHdfs": 473545
+    },
+    {
+     "t": 106.7,
+     "replayed": 533000,
+     "inHdfs": 509500,
+     "lag": 59101,
+     "produced": 532500,
+     "eventsInHdfs": 473545
+    },
+    {
+     "t": 108.7,
+     "replayed": 543000,
+     "inHdfs": 509500,
+     "lag": 39111,
+     "produced": 542500,
+     "eventsInHdfs": 503565
+    },
+    {
+     "t": 110.7,
+     "replayed": 553000,
+     "inHdfs": 535000,
+     "lag": 49145,
+     "produced": 552500,
+     "eventsInHdfs": 503565
+    },
+    {
+     "t": 112.7,
+     "replayed": 563500,
+     "inHdfs": 535000,
+     "lag": 59181,
+     "produced": 562500,
+     "eventsInHdfs": 503565
+    },
+    {
+     "t": 114.7,
+     "replayed": 573500,
+     "inHdfs": 562500,
+     "lag": 69204,
+     "produced": 572500,
+     "eventsInHdfs": 503565
+    },
+    {
+     "t": 116.7,
+     "replayed": 583500,
+     "inHdfs": 562500,
+     "lag": 79240,
+     "produced": 582500,
+     "eventsInHdfs": 503565
+    },
+    {
+     "t": 118.7,
+     "replayed": 593500,
+     "inHdfs": 562500,
+     "lag": 41109,
+     "produced": 592500,
+     "eventsInHdfs": 551729
+    },
+    {
+     "t": 120.7,
+     "replayed": 603500,
+     "inHdfs": 588500,
+     "lag": 51141,
+     "produced": 602500,
+     "eventsInHdfs": 551729
+    },
+    {
+     "t": 122.7,
+     "replayed": 613500,
+     "inHdfs": 588500,
+     "lag": 61207,
+     "produced": 612500,
+     "eventsInHdfs": 551729
+    },
+    {
+     "t": 124.7,
+     "replayed": 623500,
+     "inHdfs": 615000,
+     "lag": 71241,
+     "produced": 622500,
+     "eventsInHdfs": 551729
+    },
+    {
+     "t": 126.7,
+     "replayed": 633500,
+     "inHdfs": 615000,
+     "lag": 81271,
+     "produced": 633000,
+     "eventsInHdfs": 551729
+    },
+    {
+     "t": 128.8,
+     "replayed": 643500,
+     "inHdfs": 615000,
+     "lag": 42327,
+     "produced": 643000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 130.8,
+     "replayed": 653500,
+     "inHdfs": 641000,
+     "lag": 52350,
+     "produced": 653000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 132.8,
+     "replayed": 663500,
+     "inHdfs": 641000,
+     "lag": 62381,
+     "produced": 663000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 134.8,
+     "replayed": 673500,
+     "inHdfs": 667000,
+     "lag": 72409,
+     "produced": 673000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 136.8,
+     "replayed": 683500,
+     "inHdfs": 667000,
+     "lag": 82436,
+     "produced": 683000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 138.8,
+     "replayed": 694000,
+     "inHdfs": 667000,
+     "lag": 92485,
+     "produced": 693000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 140.8,
+     "replayed": 704000,
+     "inHdfs": 693000,
+     "lag": 102524,
+     "produced": 703000,
+     "eventsInHdfs": 600744
+    },
+    {
+     "t": 142.8,
+     "replayed": 714000,
+     "inHdfs": 693000,
+     "lag": 64110,
+     "produced": 713000,
+     "eventsInHdfs": 649189
+    },
+    {
+     "t": 144.8,
+     "replayed": 724000,
+     "inHdfs": 693000,
+     "lag": 74134,
+     "produced": 723000,
+     "eventsInHdfs": 649189
+    },
+    {
+     "t": 146.8,
+     "replayed": 734000,
+     "inHdfs": 698000,
+     "lag": 34162,
+     "produced": 733000,
+     "eventsInHdfs": 699189
+    },
+    {
+     "t": 148.8,
+     "replayed": 744000,
+     "inHdfs": 719000,
+     "lag": 44221,
+     "produced": 743000,
+     "eventsInHdfs": 699189
+    },
+    {
+     "t": 150.8,
+     "replayed": 754000,
+     "inHdfs": 745500,
+     "lag": 54247,
+     "produced": 753000,
+     "eventsInHdfs": 699189
+    },
+    {
+     "t": 152.8,
+     "replayed": 764000,
+     "inHdfs": 745500,
+     "lag": 64269,
+     "produced": 763000,
+     "eventsInHdfs": 699189
+    },
+    {
+     "t": 154.8,
+     "replayed": 774000,
+     "inHdfs": 745500,
+     "lag": 74311,
+     "produced": 773000,
+     "eventsInHdfs": 699189
+    },
+    {
+     "t": 156.9,
+     "replayed": 784000,
+     "inHdfs": 748500,
+     "lag": 45655,
+     "produced": 783500,
+     "eventsInHdfs": 737845
+    },
+    {
+     "t": 158.9,
+     "replayed": 794000,
+     "inHdfs": 772500,
+     "lag": 55703,
+     "produced": 793500,
+     "eventsInHdfs": 737845
+    },
+    {
+     "t": 160.9,
+     "replayed": 804000,
+     "inHdfs": 798500,
+     "lag": 65747,
+     "produced": 803500,
+     "eventsInHdfs": 737845
+    },
+    {
+     "t": 162.9,
+     "replayed": 814000,
+     "inHdfs": 798500,
+     "lag": 27051,
+     "produced": 813500,
+     "eventsInHdfs": 786573
+    },
+    {
+     "t": 164.9,
+     "replayed": 824000,
+     "inHdfs": 798500,
+     "lag": 37080,
+     "produced": 823500,
+     "eventsInHdfs": 786573
+    },
+    {
+     "t": 166.9,
+     "replayed": 834000,
+     "inHdfs": 800500,
+     "lag": 47104,
+     "produced": 833500,
+     "eventsInHdfs": 786573
+    },
+    {
+     "t": 168.9,
+     "replayed": 844000,
+     "inHdfs": 825000,
+     "lag": 57133,
+     "produced": 843500,
+     "eventsInHdfs": 786573
+    },
+    {
+     "t": 170.9,
+     "replayed": 854500,
+     "inHdfs": 851000,
+     "lag": 67169,
+     "produced": 853500,
+     "eventsInHdfs": 786573
+    },
+    {
+     "t": 172.9,
+     "replayed": 864500,
+     "inHdfs": 851000,
+     "lag": 46973,
+     "produced": 863500,
+     "eventsInHdfs": 816825
+    },
+    {
+     "t": 174.9,
+     "replayed": 874000,
+     "inHdfs": 851000,
+     "lag": 56996,
+     "produced": 873500,
+     "eventsInHdfs": 816825
+    },
+    {
+     "t": 176.9,
+     "replayed": 884500,
+     "inHdfs": 854000,
+     "lag": 67031,
+     "produced": 883500,
+     "eventsInHdfs": 816825
+    },
+    {
+     "t": 178.9,
+     "replayed": 894500,
+     "inHdfs": 877000,
+     "lag": 77100,
+     "produced": 893500,
+     "eventsInHdfs": 816825
+    },
+    {
+     "t": 180.9,
+     "replayed": 904500,
+     "inHdfs": 877000,
+     "lag": 87137,
+     "produced": 903500,
+     "eventsInHdfs": 816825
+    },
+    {
+     "t": 182.9,
+     "replayed": 914500,
+     "inHdfs": 877000,
+     "lag": 47513,
+     "produced": 914000,
+     "eventsInHdfs": 866487
+    },
+    {
+     "t": 185.0,
+     "replayed": 923500,
+     "inHdfs": 903000,
+     "lag": 57013,
+     "produced": 923000,
+     "eventsInHdfs": 866487
+    },
+    {
+     "t": 187.0,
+     "replayed": 934500,
+     "inHdfs": 906000,
+     "lag": 67585,
+     "produced": 934000,
+     "eventsInHdfs": 866487
+    },
+    {
+     "t": 189.0,
+     "replayed": 944500,
+     "inHdfs": 928500,
+     "lag": 77609,
+     "produced": 944000,
+     "eventsInHdfs": 866487
+    },
+    {
+     "t": 191.0,
+     "replayed": 954500,
+     "inHdfs": 928500,
+     "lag": 87663,
+     "produced": 954000,
+     "eventsInHdfs": 866487
+    },
+    {
+     "t": 193.0,
+     "replayed": 964500,
+     "inHdfs": 928500,
+     "lag": 47729,
+     "produced": 964000,
+     "eventsInHdfs": 916487
+    },
+    {
+     "t": 195.0,
+     "replayed": 974500,
+     "inHdfs": 954500,
+     "lag": 57753,
+     "produced": 974000,
+     "eventsInHdfs": 916487
+    },
+    {
+     "t": 197.0,
+     "replayed": 985000,
+     "inHdfs": 958500,
+     "lag": 67797,
+     "produced": 984000,
+     "eventsInHdfs": 916487
+    },
+    {
+     "t": 199.0,
+     "replayed": 995000,
+     "inHdfs": 980500,
+     "lag": 28994,
+     "produced": 994000,
+     "eventsInHdfs": 965346
+    },
+    {
+     "t": 201.0,
+     "replayed": 1005000,
+     "inHdfs": 980500,
+     "lag": 39027,
+     "produced": 1004000,
+     "eventsInHdfs": 965346
+    },
+    {
+     "t": 203.0,
+     "replayed": 1015000,
+     "inHdfs": 980500,
+     "lag": 49073,
+     "produced": 1014000,
+     "eventsInHdfs": 965346
+    },
+    {
+     "t": 205.0,
+     "replayed": 1025000,
+     "inHdfs": 1006500,
+     "lag": 29375,
+     "produced": 1024000,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 207.0,
+     "replayed": 1035000,
+     "inHdfs": 1006500,
+     "lag": 39405,
+     "produced": 1034500,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 209.1,
+     "replayed": 1045000,
+     "inHdfs": 1034500,
+     "lag": 49467,
+     "produced": 1044500,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 211.1,
+     "replayed": 1055000,
+     "inHdfs": 1034500,
+     "lag": 59491,
+     "produced": 1054500,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 213.1,
+     "replayed": 1065000,
+     "inHdfs": 1034500,
+     "lag": 69518,
+     "produced": 1064500,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 215.1,
+     "replayed": 1075000,
+     "inHdfs": 1060500,
+     "lag": 79548,
+     "produced": 1074500,
+     "eventsInHdfs": 995095
+    },
+    {
+     "t": 217.1,
+     "replayed": 1085000,
+     "inHdfs": 1060500,
+     "lag": 60198,
+     "produced": 1084500,
+     "eventsInHdfs": 1024500
+    },
+    {
+     "t": 219.1,
+     "replayed": 1095500,
+     "inHdfs": 1086500,
+     "lag": 70235,
+     "produced": 1094500,
+     "eventsInHdfs": 1024500
+    },
+    {
+     "t": 221.1,
+     "replayed": 1105500,
+     "inHdfs": 1086500,
+     "lag": 80253,
+     "produced": 1104500,
+     "eventsInHdfs": 1024500
+    },
+    {
+     "t": 223.1,
+     "replayed": 1115500,
+     "inHdfs": 1086500,
+     "lag": 90297,
+     "produced": 1114500,
+     "eventsInHdfs": 1024500
+    },
+    {
+     "t": 225.1,
+     "replayed": 1125500,
+     "inHdfs": 1112500,
+     "lag": 50396,
+     "produced": 1124500,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 227.1,
+     "replayed": 1135500,
+     "inHdfs": 1112500,
+     "lag": 60433,
+     "produced": 1134500,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 229.1,
+     "replayed": 1145500,
+     "inHdfs": 1112500,
+     "lag": 70478,
+     "produced": 1144500,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 231.1,
+     "replayed": 1155500,
+     "inHdfs": 1138500,
+     "lag": 80500,
+     "produced": 1155000,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 233.2,
+     "replayed": 1165500,
+     "inHdfs": 1138500,
+     "lag": 90538,
+     "produced": 1165000,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 235.2,
+     "replayed": 1175500,
+     "inHdfs": 1164500,
+     "lag": 100600,
+     "produced": 1175000,
+     "eventsInHdfs": 1074500
+    },
+    {
+     "t": 237.2,
+     "replayed": 1185500,
+     "inHdfs": 1164500,
+     "lag": 60628,
+     "produced": 1185000,
+     "eventsInHdfs": 1124500
+    },
+    {
+     "t": 239.2,
+     "replayed": 1195500,
+     "inHdfs": 1164500,
+     "lag": 70676,
+     "produced": 1195000,
+     "eventsInHdfs": 1124500
+    },
+    {
+     "t": 241.2,
+     "replayed": 1205500,
+     "inHdfs": 1191000,
+     "lag": 80711,
+     "produced": 1205000,
+     "eventsInHdfs": 1124500
+    },
+    {
+     "t": 243.2,
+     "replayed": 1216000,
+     "inHdfs": 1191000,
+     "lag": 90758,
+     "produced": 1215000,
+     "eventsInHdfs": 1124500
+    },
+    {
+     "t": 245.2,
+     "replayed": 1226000,
+     "inHdfs": 1217000,
+     "lag": 50878,
+     "produced": 1225000,
+     "eventsInHdfs": 1174500
+    },
+    {
+     "t": 247.2,
+     "replayed": 1236000,
+     "inHdfs": 1217000,
+     "lag": 60910,
+     "produced": 1235000,
+     "eventsInHdfs": 1174500
+    },
+    {
+     "t": 249.2,
+     "replayed": 1246000,
+     "inHdfs": 1217000,
+     "lag": 70951,
+     "produced": 1245000,
+     "eventsInHdfs": 1174500
+    },
+    {
+     "t": 251.2,
+     "replayed": 1256000,
+     "inHdfs": 1242500,
+     "lag": 81000,
+     "produced": 1255000,
+     "eventsInHdfs": 1174500
+    },
+    {
+     "t": 253.3,
+     "replayed": 1266000,
+     "inHdfs": 1242500,
+     "lag": 41046,
+     "produced": 1265500,
+     "eventsInHdfs": 1224500
+    },
+    {
+     "t": 255.3,
+     "replayed": 1276000,
+     "inHdfs": 1268500,
+     "lag": 51095,
+     "produced": 1275500,
+     "eventsInHdfs": 1224500
+    },
+    {
+     "t": 257.3,
+     "replayed": 1286000,
+     "inHdfs": 1268500,
+     "lag": 61111,
+     "produced": 1285500,
+     "eventsInHdfs": 1224500
+    },
+    {
+     "t": 259.3,
+     "replayed": 1296000,
+     "inHdfs": 1268500,
+     "lag": 71148,
+     "produced": 1295500,
+     "eventsInHdfs": 1224500
+    },
+    {
+     "t": 261.3,
+     "replayed": 1306000,
+     "inHdfs": 1294500,
+     "lag": 81200,
+     "produced": 1305500,
+     "eventsInHdfs": 1224500
+    },
+    {
+     "t": 263.3,
+     "replayed": 1316000,
+     "inHdfs": 1294500,
+     "lag": 41237,
+     "produced": 1315500,
+     "eventsInHdfs": 1274500
+    },
+    {
+     "t": 265.3,
+     "replayed": 1326500,
+     "inHdfs": 1322500,
+     "lag": 51271,
+     "produced": 1325500,
+     "eventsInHdfs": 1274500
+    },
+    {
+     "t": 267.3,
+     "replayed": 1336500,
+     "inHdfs": 1322500,
+     "lag": 61328,
+     "produced": 1335500,
+     "eventsInHdfs": 1274500
+    },
+    {
+     "t": 269.3,
+     "replayed": 1346500,
+     "inHdfs": 1322500,
+     "lag": 71365,
+     "produced": 1345500,
+     "eventsInHdfs": 1274500
+    },
+    {
+     "t": 271.3,
+     "replayed": 1356500,
+     "inHdfs": 1325500,
+     "lag": 81396,
+     "produced": 1355500,
+     "eventsInHdfs": 1274500
+    },
+    {
+     "t": 273.3,
+     "replayed": 1366500,
+     "inHdfs": 1350500,
+     "lag": 42932,
+     "produced": 1365500,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 275.3,
+     "replayed": 1376500,
+     "inHdfs": 1350500,
+     "lag": 52972,
+     "produced": 1375500,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 277.3,
+     "replayed": 1386500,
+     "inHdfs": 1350500,
+     "lag": 63000,
+     "produced": 1385500,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 279.4,
+     "replayed": 1390000,
+     "inHdfs": 1356500,
+     "lag": 67000,
+     "produced": 1389500,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 281.4,
+     "replayed": 1406500,
+     "inHdfs": 1378500,
+     "lag": 83000,
+     "produced": 1406000,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 283.4,
+     "replayed": 1416000,
+     "inHdfs": 1405500,
+     "lag": 92500,
+     "produced": 1415000,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 285.4,
+     "replayed": 1426500,
+     "inHdfs": 1405500,
+     "lag": 103183,
+     "produced": 1426000,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 287.4,
+     "replayed": 1436500,
+     "inHdfs": 1405500,
+     "lag": 113239,
+     "produced": 1436000,
+     "eventsInHdfs": 1323000
+    },
+    {
+     "t": 289.4,
+     "replayed": 1447000,
+     "inHdfs": 1434000,
+     "lag": 74282,
+     "produced": 1446000,
+     "eventsInHdfs": 1372000
+    },
+    {
+     "t": 291.4,
+     "replayed": 1457000,
+     "inHdfs": 1434000,
+     "lag": 84337,
+     "produced": 1456000,
+     "eventsInHdfs": 1372000
+    },
+    {
+     "t": 293.4,
+     "replayed": 1467000,
+     "inHdfs": 1461500,
+     "lag": 94385,
+     "produced": 1466000,
+     "eventsInHdfs": 1372000
+    },
+    {
+     "t": 295.4,
+     "replayed": 1477000,
+     "inHdfs": 1461500,
+     "lag": 104410,
+     "produced": 1476000,
+     "eventsInHdfs": 1372000
+    },
+    {
+     "t": 297.4,
+     "replayed": 1487000,
+     "inHdfs": 1461500,
+     "lag": 114443,
+     "produced": 1486000,
+     "eventsInHdfs": 1372000
+    },
+    {
+     "t": 299.4,
+     "replayed": 1497000,
+     "inHdfs": 1477500,
+     "lag": 74476,
+     "produced": 1496000,
+     "eventsInHdfs": 1422000
+    },
+    {
+     "t": 301.5,
+     "replayed": 1507000,
+     "inHdfs": 1487500,
+     "lag": 84525,
+     "produced": 1506500,
+     "eventsInHdfs": 1422000
+    },
+    {
+     "t": 303.5,
+     "replayed": 1517000,
+     "inHdfs": 1513500,
+     "lag": 44573,
+     "produced": 1516500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 305.5,
+     "replayed": 1527000,
+     "inHdfs": 1513500,
+     "lag": 54626,
+     "produced": 1526500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 307.5,
+     "replayed": 1537000,
+     "inHdfs": 1513500,
+     "lag": 64649,
+     "produced": 1536500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 309.5,
+     "replayed": 1547000,
+     "inHdfs": 1523500,
+     "lag": 74675,
+     "produced": 1546500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 311.5,
+     "replayed": 1557000,
+     "inHdfs": 1539500,
+     "lag": 84713,
+     "produced": 1556500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 313.5,
+     "replayed": 1567500,
+     "inHdfs": 1539500,
+     "lag": 94746,
+     "produced": 1566500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 315.5,
+     "replayed": 1577000,
+     "inHdfs": 1539500,
+     "lag": 104765,
+     "produced": 1576500,
+     "eventsInHdfs": 1472000
+    },
+    {
+     "t": 317.5,
+     "replayed": 1587500,
+     "inHdfs": 1565500,
+     "lag": 68437,
+     "produced": 1586500,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 319.5,
+     "replayed": 1597500,
+     "inHdfs": 1575500,
+     "lag": 78460,
+     "produced": 1596500,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 321.5,
+     "replayed": 1607500,
+     "inHdfs": 1591500,
+     "lag": 88499,
+     "produced": 1606500,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 323.5,
+     "replayed": 1617500,
+     "inHdfs": 1591500,
+     "lag": 98539,
+     "produced": 1616500,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 325.5,
+     "replayed": 1627500,
+     "inHdfs": 1591500,
+     "lag": 108581,
+     "produced": 1626500,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 327.5,
+     "replayed": 1637500,
+     "inHdfs": 1618000,
+     "lag": 118636,
+     "produced": 1637000,
+     "eventsInHdfs": 1518364
+    },
+    {
+     "t": 329.6,
+     "replayed": 1647500,
+     "inHdfs": 1618000,
+     "lag": 78669,
+     "produced": 1647000,
+     "eventsInHdfs": 1568364
+    },
+    {
+     "t": 331.6,
+     "replayed": 1657500,
+     "inHdfs": 1644000,
+     "lag": 88636,
+     "produced": 1657000,
+     "eventsInHdfs": 1568364
+    },
+    {
+     "t": 333.6,
+     "replayed": 1667500,
+     "inHdfs": 1644000,
+     "lag": 98759,
+     "produced": 1667000,
+     "eventsInHdfs": 1568364
+    },
+    {
+     "t": 335.6,
+     "replayed": 1677500,
+     "inHdfs": 1644000,
+     "lag": 108825,
+     "produced": 1677000,
+     "eventsInHdfs": 1568364
+    },
+    {
+     "t": 337.6,
+     "replayed": 1688000,
+     "inHdfs": 1670500,
+     "lag": 118847,
+     "produced": 1687000,
+     "eventsInHdfs": 1568364
+    },
+    {
+     "t": 339.6,
+     "replayed": 1697500,
+     "inHdfs": 1670500,
+     "lag": 78636,
+     "produced": 1696500,
+     "eventsInHdfs": 1618364
+    },
+    {
+     "t": 341.6,
+     "replayed": 1708000,
+     "inHdfs": 1696500,
+     "lag": 88937,
+     "produced": 1707000,
+     "eventsInHdfs": 1618364
+    },
+    {
+     "t": 343.6,
+     "replayed": 1718000,
+     "inHdfs": 1696500,
+     "lag": 48993,
+     "produced": 1717000,
+     "eventsInHdfs": 1668364
+    },
+    {
+     "t": 345.6,
+     "replayed": 1728000,
+     "inHdfs": 1696500,
+     "lag": 59012,
+     "produced": 1727000,
+     "eventsInHdfs": 1668364
+    },
+    {
+     "t": 347.6,
+     "replayed": 1738000,
+     "inHdfs": 1722500,
+     "lag": 69082,
+     "produced": 1737000,
+     "eventsInHdfs": 1668364
+    },
+    {
+     "t": 349.6,
+     "replayed": 1748000,
+     "inHdfs": 1722500,
+     "lag": 79107,
+     "produced": 1747000,
+     "eventsInHdfs": 1668364
+    },
+    {
+     "t": 351.6,
+     "replayed": 1758000,
+     "inHdfs": 1748500,
+     "lag": 89136,
+     "produced": 1757500,
+     "eventsInHdfs": 1668364
+    },
+    {
+     "t": 353.7,
+     "replayed": 1768000,
+     "inHdfs": 1748500,
+     "lag": 49208,
+     "produced": 1767500,
+     "eventsInHdfs": 1718364
+    },
+    {
+     "t": 355.7,
+     "replayed": 1778000,
+     "inHdfs": 1748500,
+     "lag": 59236,
+     "produced": 1777500,
+     "eventsInHdfs": 1718364
+    },
+    {
+     "t": 357.7,
+     "replayed": 1788000,
+     "inHdfs": 1775000,
+     "lag": 69287,
+     "produced": 1787500,
+     "eventsInHdfs": 1718364
+    },
+    {
+     "t": 359.7,
+     "replayed": 1798000,
+     "inHdfs": 1775000,
+     "lag": 79317,
+     "produced": 1797500,
+     "eventsInHdfs": 1718364
+    },
+    {
+     "t": 361.7,
+     "replayed": 1807500,
+     "inHdfs": 1800500,
+     "lag": 89136,
+     "produced": 1807000,
+     "eventsInHdfs": 1718364
+    },
+    {
+     "t": 363.7,
+     "replayed": 1818500,
+     "inHdfs": 1800500,
+     "lag": 49567,
+     "produced": 1817500,
+     "eventsInHdfs": 1768231
+    },
+    {
+     "t": 365.7,
+     "replayed": 1828500,
+     "inHdfs": 1800500,
+     "lag": 59595,
+     "produced": 1827500,
+     "eventsInHdfs": 1768231
+    },
+    {
+     "t": 367.7,
+     "replayed": 1838500,
+     "inHdfs": 1827000,
+     "lag": 69651,
+     "produced": 1837500,
+     "eventsInHdfs": 1768231
+    },
+    {
+     "t": 369.7,
+     "replayed": 1848500,
+     "inHdfs": 1827000,
+     "lag": 79678,
+     "produced": 1847500,
+     "eventsInHdfs": 1768231
+    },
+    {
+     "t": 371.7,
+     "replayed": 1858500,
+     "inHdfs": 1855000,
+     "lag": 39734,
+     "produced": 1857500,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 373.8,
+     "replayed": 1868500,
+     "inHdfs": 1855000,
+     "lag": 49836,
+     "produced": 1868000,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 375.8,
+     "replayed": 1878500,
+     "inHdfs": 1855000,
+     "lag": 59891,
+     "produced": 1878000,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 377.8,
+     "replayed": 1884500,
+     "inHdfs": 1855000,
+     "lag": 65769,
+     "produced": 1883500,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 379.8,
+     "replayed": 1898500,
+     "inHdfs": 1883000,
+     "lag": 79994,
+     "produced": 1898000,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 381.8,
+     "replayed": 1908500,
+     "inHdfs": 1883000,
+     "lag": 90039,
+     "produced": 1908000,
+     "eventsInHdfs": 1818231
+    },
+    {
+     "t": 383.8,
+     "replayed": 1917500,
+     "inHdfs": 1909000,
+     "lag": 49799,
+     "produced": 1917000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 385.8,
+     "replayed": 1929000,
+     "inHdfs": 1913500,
+     "lag": 60671,
+     "produced": 1928000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 387.8,
+     "replayed": 1939000,
+     "inHdfs": 1913500,
+     "lag": 70695,
+     "produced": 1938000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 389.8,
+     "replayed": 1949000,
+     "inHdfs": 1913500,
+     "lag": 80731,
+     "produced": 1948000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 391.8,
+     "replayed": 1959000,
+     "inHdfs": 1940500,
+     "lag": 90769,
+     "produced": 1958000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 393.8,
+     "replayed": 1969000,
+     "inHdfs": 1940500,
+     "lag": 100799,
+     "produced": 1968000,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 395.9,
+     "replayed": 1979000,
+     "inHdfs": 1968000,
+     "lag": 110837,
+     "produced": 1978500,
+     "eventsInHdfs": 1867701
+    },
+    {
+     "t": 397.9,
+     "replayed": 1989000,
+     "inHdfs": 1968000,
+     "lag": 70299,
+     "produced": 1988000,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 399.9,
+     "replayed": 1999000,
+     "inHdfs": 1968000,
+     "lag": 80970,
+     "produced": 1998500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 401.9,
+     "replayed": 2009000,
+     "inHdfs": 1999500,
+     "lag": 91013,
+     "produced": 2008500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 403.9,
+     "replayed": 2019000,
+     "inHdfs": 1999500,
+     "lag": 101059,
+     "produced": 2018500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 405.9,
+     "replayed": 2029500,
+     "inHdfs": 1999500,
+     "lag": 111078,
+     "produced": 2028500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 407.9,
+     "replayed": 2038000,
+     "inHdfs": 1999500,
+     "lag": 119799,
+     "produced": 2037000,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 409.9,
+     "replayed": 2049500,
+     "inHdfs": 2027500,
+     "lag": 131180,
+     "produced": 2048500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 411.9,
+     "replayed": 2059500,
+     "inHdfs": 2027500,
+     "lag": 141223,
+     "produced": 2058500,
+     "eventsInHdfs": 1917701
+    },
+    {
+     "t": 413.9,
+     "replayed": 2069500,
+     "inHdfs": 2054500,
+     "lag": 101271,
+     "produced": 2068500,
+     "eventsInHdfs": 1967701
+    },
+    {
+     "t": 415.9,
+     "replayed": 2079500,
+     "inHdfs": 2054500,
+     "lag": 111299,
+     "produced": 2078500,
+     "eventsInHdfs": 1967701
+    },
+    {
+     "t": 418.0,
+     "replayed": 2089500,
+     "inHdfs": 2054500,
+     "lag": 71424,
+     "produced": 2089000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 420.0,
+     "replayed": 2099500,
+     "inHdfs": 2082000,
+     "lag": 81299,
+     "produced": 2098500,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 422.0,
+     "replayed": 2109500,
+     "inHdfs": 2082000,
+     "lag": 91502,
+     "produced": 2109000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 424.0,
+     "replayed": 2120000,
+     "inHdfs": 2109500,
+     "lag": 101570,
+     "produced": 2119000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 426.0,
+     "replayed": 2130000,
+     "inHdfs": 2109500,
+     "lag": 111610,
+     "produced": 2129000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 428.0,
+     "replayed": 2140000,
+     "inHdfs": 2109500,
+     "lag": 121653,
+     "produced": 2139000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 430.0,
+     "replayed": 2150000,
+     "inHdfs": 2136500,
+     "lag": 131681,
+     "produced": 2149000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 432.0,
+     "replayed": 2160000,
+     "inHdfs": 2136500,
+     "lag": 141709,
+     "produced": 2159000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 434.0,
+     "replayed": 2170000,
+     "inHdfs": 2164500,
+     "lag": 151742,
+     "produced": 2169000,
+     "eventsInHdfs": 2017701
+    },
+    {
+     "t": 436.0,
+     "replayed": 2176000,
+     "inHdfs": 2164500,
+     "lag": 108299,
+     "produced": 2175500,
+     "eventsInHdfs": 2067701
+    },
+    {
+     "t": 438.1,
+     "replayed": 2190000,
+     "inHdfs": 2164500,
+     "lag": 121799,
+     "produced": 2189500,
+     "eventsInHdfs": 2067701
+    },
+    {
+     "t": 440.1,
+     "replayed": 2200000,
+     "inHdfs": 2181500,
+     "lag": 131799,
+     "produced": 2199000,
+     "eventsInHdfs": 2067701
+    },
+    {
+     "t": 442.1,
+     "replayed": 2210000,
+     "inHdfs": 2196500,
+     "lag": 141925,
+     "produced": 2209500,
+     "eventsInHdfs": 2067701
+    },
+    {
+     "t": 444.1,
+     "replayed": 2220000,
+     "inHdfs": 2196500,
+     "lag": 101959,
+     "produced": 2219500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 446.1,
+     "replayed": 2230000,
+     "inHdfs": 2196500,
+     "lag": 111982,
+     "produced": 2229500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 448.1,
+     "replayed": 2240000,
+     "inHdfs": 2224500,
+     "lag": 122056,
+     "produced": 2239500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 450.1,
+     "replayed": 2250500,
+     "inHdfs": 2226500,
+     "lag": 132082,
+     "produced": 2249500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 452.1,
+     "replayed": 2260500,
+     "inHdfs": 2250500,
+     "lag": 142135,
+     "produced": 2259500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 454.1,
+     "replayed": 2270500,
+     "inHdfs": 2250500,
+     "lag": 152185,
+     "produced": 2269500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 456.1,
+     "replayed": 2280500,
+     "inHdfs": 2250500,
+     "lag": 162238,
+     "produced": 2279500,
+     "eventsInHdfs": 2117701
+    },
+    {
+     "t": 458.1,
+     "replayed": 2290000,
+     "inHdfs": 2276500,
+     "lag": 121299,
+     "produced": 2288500,
+     "eventsInHdfs": 2167701
+    },
+    {
+     "t": 460.2,
+     "replayed": 2300500,
+     "inHdfs": 2276500,
+     "lag": 132327,
+     "produced": 2300000,
+     "eventsInHdfs": 2167701
+    },
+    {
+     "t": 462.2,
+     "replayed": 2310500,
+     "inHdfs": 2276500,
+     "lag": 142369,
+     "produced": 2310000,
+     "eventsInHdfs": 2167701
+    },
+    {
+     "t": 464.2,
+     "replayed": 2320500,
+     "inHdfs": 2303000,
+     "lag": 152427,
+     "produced": 2320000,
+     "eventsInHdfs": 2167701
+    },
+    {
+     "t": 466.2,
+     "replayed": 2330500,
+     "inHdfs": 2303000,
+     "lag": 112475,
+     "produced": 2330000,
+     "eventsInHdfs": 2217701
+    },
+    {
+     "t": 468.2,
+     "replayed": 2340000,
+     "inHdfs": 2329000,
+     "lag": 122299,
+     "produced": 2339500,
+     "eventsInHdfs": 2217701
+    },
+    {
+     "t": 470.2,
+     "replayed": 2351000,
+     "inHdfs": 2329000,
+     "lag": 82583,
+     "produced": 2350000,
+     "eventsInHdfs": 2267701
+    },
+    {
+     "t": 472.2,
+     "replayed": 2361000,
+     "inHdfs": 2329000,
+     "lag": 92603,
+     "produced": 2360000,
+     "eventsInHdfs": 2267701
+    },
+    {
+     "t": 474.2,
+     "replayed": 2371000,
+     "inHdfs": 2355500,
+     "lag": 102660,
+     "produced": 2370000,
+     "eventsInHdfs": 2267701
+    },
+    {
+     "t": 476.2,
+     "replayed": 2381000,
+     "inHdfs": 2355500,
+     "lag": 112680,
+     "produced": 2380000,
+     "eventsInHdfs": 2267701
+    },
+    {
+     "t": 478.2,
+     "replayed": 2391000,
+     "inHdfs": 2381500,
+     "lag": 72706,
+     "produced": 2390000,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 480.2,
+     "replayed": 2401000,
+     "inHdfs": 2381500,
+     "lag": 82741,
+     "produced": 2400000,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 482.2,
+     "replayed": 2411000,
+     "inHdfs": 2381500,
+     "lag": 92771,
+     "produced": 2410000,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 484.2,
+     "replayed": 2421000,
+     "inHdfs": 2406500,
+     "lag": 102799,
+     "produced": 2420500,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 486.3,
+     "replayed": 2431000,
+     "inHdfs": 2407500,
+     "lag": 112838,
+     "produced": 2430500,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 488.3,
+     "replayed": 2441000,
+     "inHdfs": 2433500,
+     "lag": 122895,
+     "produced": 2440500,
+     "eventsInHdfs": 2317701
+    },
+    {
+     "t": 490.3,
+     "replayed": 2451000,
+     "inHdfs": 2433500,
+     "lag": 82931,
+     "produced": 2450500,
+     "eventsInHdfs": 2367701
+    },
+    {
+     "t": 492.3,
+     "replayed": 2461000,
+     "inHdfs": 2433500,
+     "lag": 92985,
+     "produced": 2460500,
+     "eventsInHdfs": 2367701
+    },
+    {
+     "t": 494.3,
+     "replayed": 2471500,
+     "inHdfs": 2445500,
+     "lag": 103040,
+     "produced": 2470500,
+     "eventsInHdfs": 2367701
+    },
+    {
+     "t": 496.3,
+     "replayed": 2481500,
+     "inHdfs": 2459500,
+     "lag": 113073,
+     "produced": 2480500,
+     "eventsInHdfs": 2367701
+    },
+    {
+     "t": 498.3,
+     "replayed": 2491500,
+     "inHdfs": 2485500,
+     "lag": 73093,
+     "produced": 2490500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 500.3,
+     "replayed": 2501500,
+     "inHdfs": 2485500,
+     "lag": 83123,
+     "produced": 2500500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 502.3,
+     "replayed": 2511500,
+     "inHdfs": 2485500,
+     "lag": 93154,
+     "produced": 2510500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 504.3,
+     "replayed": 2521500,
+     "inHdfs": 2490500,
+     "lag": 103185,
+     "produced": 2520500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 506.3,
+     "replayed": 2531500,
+     "inHdfs": 2511000,
+     "lag": 113221,
+     "produced": 2530500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 508.3,
+     "replayed": 2541500,
+     "inHdfs": 2537000,
+     "lag": 123253,
+     "produced": 2540500,
+     "eventsInHdfs": 2417701
+    },
+    {
+     "t": 510.3,
+     "replayed": 2551500,
+     "inHdfs": 2537000,
+     "lag": 83299,
+     "produced": 2550500,
+     "eventsInHdfs": 2467701
+    },
+    {
+     "t": 512.4,
+     "replayed": 2561500,
+     "inHdfs": 2537000,
+     "lag": 93316,
+     "produced": 2561000,
+     "eventsInHdfs": 2467701
+    },
+    {
+     "t": 514.4,
+     "replayed": 2570500,
+     "inHdfs": 2537000,
+     "lag": 52299,
+     "produced": 2569500,
+     "eventsInHdfs": 2517701
+    },
+    {
+     "t": 516.4,
+     "replayed": 2581500,
+     "inHdfs": 2564000,
+     "lag": 63427,
+     "produced": 2581000,
+     "eventsInHdfs": 2517701
+    },
+    {
+     "t": 518.4,
+     "replayed": 2591500,
+     "inHdfs": 2565000,
+     "lag": 73452,
+     "produced": 2591000,
+     "eventsInHdfs": 2517701
+    },
+    {
+     "t": 520.4,
+     "replayed": 2596000,
+     "inHdfs": 2591500,
+     "lag": 78299,
+     "produced": 2595500,
+     "eventsInHdfs": 2517701
+    },
+    {
+     "t": 522.4,
+     "replayed": 2611500,
+     "inHdfs": 2591500,
+     "lag": 93579,
+     "produced": 2611000,
+     "eventsInHdfs": 2517701
+    },
+    {
+     "t": 524.4,
+     "replayed": 2621500,
+     "inHdfs": 2591500,
+     "lag": 53636,
+     "produced": 2621000,
+     "eventsInHdfs": 2567701
+    },
+    {
+     "t": 526.4,
+     "replayed": 2632000,
+     "inHdfs": 2619000,
+     "lag": 63682,
+     "produced": 2631000,
+     "eventsInHdfs": 2567701
+    },
+    {
+     "t": 528.4,
+     "replayed": 2642000,
+     "inHdfs": 2619000,
+     "lag": 73733,
+     "produced": 2641000,
+     "eventsInHdfs": 2567701
+    },
+    {
+     "t": 530.4,
+     "replayed": 2647500,
+     "inHdfs": 2619000,
+     "lag": 78537,
+     "produced": 2646000,
+     "eventsInHdfs": 2567701
+    },
+    {
+     "t": 533.5,
+     "replayed": 2650500,
+     "inHdfs": 2619000,
+     "lag": 81949,
+     "produced": 2649500,
+     "eventsInHdfs": 2567701
+    },
+    {
+     "t": 535.6,
+     "replayed": 2666000,
+     "inHdfs": 2639000,
+     "lag": 52299,
+     "produced": 2669500,
+     "eventsInHdfs": 2617701
+    },
+    {
+     "t": 537.6,
+     "replayed": 2686000,
+     "inHdfs": 2658000,
+     "lag": 66799,
+     "produced": 2684000,
+     "eventsInHdfs": 2617701
+    },
+    {
+     "t": 539.6,
+     "replayed": 2697500,
+     "inHdfs": 2658000,
+     "lag": 79431,
+     "produced": 2697000,
+     "eventsInHdfs": 2617701
+    },
+    {
+     "t": 541.6,
+     "replayed": 2707500,
+     "inHdfs": 2658000,
+     "lag": 89458,
+     "produced": 2707000,
+     "eventsInHdfs": 2617701
+    },
+    {
+     "t": 543.6,
+     "replayed": 2713000,
+     "inHdfs": 2673000,
+     "lag": 95299,
+     "produced": 2712500,
+     "eventsInHdfs": 2617701
+    },
+    {
+     "t": 545.6,
+     "replayed": 2727000,
+     "inHdfs": 2705500,
+     "lag": 58799,
+     "produced": 2726000,
+     "eventsInHdfs": 2667701
+    },
+    {
+     "t": 547.6,
+     "replayed": 2737500,
+     "inHdfs": 2709500,
+     "lag": 69619,
+     "produced": 2737000,
+     "eventsInHdfs": 2667701
+    },
+    {
+     "t": 549.6,
+     "replayed": 2748000,
+     "inHdfs": 2732500,
+     "lag": 79684,
+     "produced": 2747000,
+     "eventsInHdfs": 2667701
+    },
+    {
+     "t": 551.6,
+     "replayed": 2758000,
+     "inHdfs": 2732500,
+     "lag": 89713,
+     "produced": 2757000,
+     "eventsInHdfs": 2667701
+    },
+    {
+     "t": 553.6,
+     "replayed": 2768000,
+     "inHdfs": 2732500,
+     "lag": 49742,
+     "produced": 2767000,
+     "eventsInHdfs": 2717701
+    },
+    {
+     "t": 555.6,
+     "replayed": 2776000,
+     "inHdfs": 2760500,
+     "lag": 57799,
+     "produced": 2775000,
+     "eventsInHdfs": 2717701
+    },
+    {
+     "t": 557.6,
+     "replayed": 2788000,
+     "inHdfs": 2761500,
+     "lag": 69799,
+     "produced": 2787500,
+     "eventsInHdfs": 2717701
+    },
+    {
+     "t": 559.7,
+     "replayed": 2798000,
+     "inHdfs": 2787500,
+     "lag": 79799,
+     "produced": 2797000,
+     "eventsInHdfs": 2717701
+    },
+    {
+     "t": 561.7,
+     "replayed": 2808000,
+     "inHdfs": 2787500,
+     "lag": 89895,
+     "produced": 2807500,
+     "eventsInHdfs": 2717701
+    },
+    {
+     "t": 563.7,
+     "replayed": 2818000,
+     "inHdfs": 2787500,
+     "lag": 49930,
+     "produced": 2817500,
+     "eventsInHdfs": 2767701
+    },
+    {
+     "t": 566.3,
+     "replayed": 2825000,
+     "inHdfs": 2815000,
+     "lag": 57299,
+     "produced": 2824500,
+     "eventsInHdfs": 2767701
+    },
+    {
+     "t": 568.3,
+     "replayed": 2841500,
+     "inHdfs": 2815000,
+     "lag": 73200,
+     "produced": 2840500,
+     "eventsInHdfs": 2767701
+    },
+    {
+     "t": 570.3,
+     "replayed": 2846500,
+     "inHdfs": 2842000,
+     "lag": 78799,
+     "produced": 2846000,
+     "eventsInHdfs": 2767701
+    },
+    {
+     "t": 572.3,
+     "replayed": 2861500,
+     "inHdfs": 2842000,
+     "lag": 93299,
+     "produced": 2861000,
+     "eventsInHdfs": 2767701
+    },
+    {
+     "t": 574.4,
+     "replayed": 2871500,
+     "inHdfs": 2842000,
+     "lag": 53338,
+     "produced": 2871000,
+     "eventsInHdfs": 2817701
+    },
+    {
+     "t": 576.4,
+     "replayed": 2881500,
+     "inHdfs": 2869000,
+     "lag": 63406,
+     "produced": 2881000,
+     "eventsInHdfs": 2817701
+    },
+    {
+     "t": 578.4,
+     "replayed": 2891500,
+     "inHdfs": 2869000,
+     "lag": 73453,
+     "produced": 2891000,
+     "eventsInHdfs": 2817701
+    },
+    {
+     "t": 580.4,
+     "replayed": 2901500,
+     "inHdfs": 2869000,
+     "lag": 82799,
+     "produced": 2900500,
+     "eventsInHdfs": 2817701
+    },
+    {
+     "t": 582.4,
+     "replayed": 2912000,
+     "inHdfs": 2895000,
+     "lag": 43543,
+     "produced": 2911000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 584.4,
+     "replayed": 2921000,
+     "inHdfs": 2904000,
+     "lag": 53299,
+     "produced": 2920500,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 586.4,
+     "replayed": 2931500,
+     "inHdfs": 2904000,
+     "lag": 63641,
+     "produced": 2931000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 588.4,
+     "replayed": 2942000,
+     "inHdfs": 2904000,
+     "lag": 73673,
+     "produced": 2941000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 590.4,
+     "replayed": 2952000,
+     "inHdfs": 2933000,
+     "lag": 83743,
+     "produced": 2951000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 592.4,
+     "replayed": 2961500,
+     "inHdfs": 2933000,
+     "lag": 93778,
+     "produced": 2961000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 594.5,
+     "replayed": 2972000,
+     "inHdfs": 2964000,
+     "lag": 103799,
+     "produced": 2971000,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 596.5,
+     "replayed": 2982000,
+     "inHdfs": 2964000,
+     "lag": 113799,
+     "produced": 2981500,
+     "eventsInHdfs": 2867701
+    },
+    {
+     "t": 598.5,
+     "replayed": 2990500,
+     "inHdfs": 2964000,
+     "lag": 72799,
+     "produced": 2990000,
+     "eventsInHdfs": 2917701
+    },
+    {
+     "t": 600.5,
+     "replayed": 2990500,
+     "inHdfs": 2964000,
+     "lag": 72799,
+     "produced": 2990000,
+     "eventsInHdfs": 2917701
+    },
+    {
+     "t": 602.5,
+     "replayed": 3012500,
+     "inHdfs": 3005000,
+     "lag": 94060,
+     "produced": 3011500,
+     "eventsInHdfs": 2917701
+    },
+    {
+     "t": 604.5,
+     "replayed": 3022500,
+     "inHdfs": 3005000,
+     "lag": 104088,
+     "produced": 3021500,
+     "eventsInHdfs": 2917701
+    },
+    {
+     "t": 606.5,
+     "replayed": 3032500,
+     "inHdfs": 3005000,
+     "lag": 64124,
+     "produced": 3031500,
+     "eventsInHdfs": 2967701
+    },
+    {
+     "t": 608.5,
+     "replayed": 3042500,
+     "inHdfs": 3032500,
+     "lag": 74152,
+     "produced": 3041500,
+     "eventsInHdfs": 2967701
+    },
+    {
+     "t": 610.5,
+     "replayed": 3052500,
+     "inHdfs": 3032500,
+     "lag": 84217,
+     "produced": 3051500,
+     "eventsInHdfs": 2967701
+    },
+    {
+     "t": 612.5,
+     "replayed": 3062500,
+     "inHdfs": 3032500,
+     "lag": 94245,
+     "produced": 3061500,
+     "eventsInHdfs": 2967701
+    },
+    {
+     "t": 614.5,
+     "replayed": 3072500,
+     "inHdfs": 3034500,
+     "lag": 104299,
+     "produced": 3072000,
+     "eventsInHdfs": 2967701
+    },
+    {
+     "t": 616.6,
+     "replayed": 3082500,
+     "inHdfs": 3060500,
+     "lag": 64338,
+     "produced": 3082000,
+     "eventsInHdfs": 3017701
+    },
+    {
+     "t": 618.6,
+     "replayed": 3092500,
+     "inHdfs": 3075500,
+     "lag": 74362,
+     "produced": 3092000,
+     "eventsInHdfs": 3017701
+    },
+    {
+     "t": 620.6,
+     "replayed": 3101500,
+     "inHdfs": 3088000,
+     "lag": 83299,
+     "produced": 3100500,
+     "eventsInHdfs": 3017701
+    },
+    {
+     "t": 622.6,
+     "replayed": 3112500,
+     "inHdfs": 3088000,
+     "lag": 94425,
+     "produced": 3112000,
+     "eventsInHdfs": 3017701
+    },
+    {
+     "t": 624.6,
+     "replayed": 3122500,
+     "inHdfs": 3088000,
+     "lag": 54444,
+     "produced": 3122000,
+     "eventsInHdfs": 3067701
+    },
+    {
+     "t": 626.6,
+     "replayed": 3125500,
+     "inHdfs": 3098000,
+     "lag": 57799,
+     "produced": 3125000,
+     "eventsInHdfs": 3067701
+    },
+    {
+     "t": 628.6,
+     "replayed": 3143000,
+     "inHdfs": 3118000,
+     "lag": 74535,
+     "produced": 3142000,
+     "eventsInHdfs": 3067701
+    },
+    {
+     "t": 630.6,
+     "replayed": 3153000,
+     "inHdfs": 3142500,
+     "lag": 84571,
+     "produced": 3152000,
+     "eventsInHdfs": 3067701
+    },
+    {
+     "t": 632.6,
+     "replayed": 3163000,
+     "inHdfs": 3142500,
+     "lag": 44620,
+     "produced": 3162000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 634.6,
+     "replayed": 3173000,
+     "inHdfs": 3142500,
+     "lag": 54643,
+     "produced": 3172000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 636.6,
+     "replayed": 3183000,
+     "inHdfs": 3154500,
+     "lag": 64680,
+     "produced": 3182000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 638.6,
+     "replayed": 3193000,
+     "inHdfs": 3170000,
+     "lag": 74705,
+     "produced": 3192000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 640.8,
+     "replayed": 3196000,
+     "inHdfs": 3170000,
+     "lag": 78799,
+     "produced": 3196500,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 642.8,
+     "replayed": 3214000,
+     "inHdfs": 3207000,
+     "lag": 95665,
+     "produced": 3213000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 644.8,
+     "replayed": 3224000,
+     "inHdfs": 3207000,
+     "lag": 105694,
+     "produced": 3223000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 646.8,
+     "replayed": 3234000,
+     "inHdfs": 3207000,
+     "lag": 115741,
+     "produced": 3233000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 648.8,
+     "replayed": 3244000,
+     "inHdfs": 3223000,
+     "lag": 125759,
+     "produced": 3243000,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 650.8,
+     "replayed": 3251500,
+     "inHdfs": 3238000,
+     "lag": 133299,
+     "produced": 3250500,
+     "eventsInHdfs": 3117701
+    },
+    {
+     "t": 652.9,
+     "replayed": 3261500,
+     "inHdfs": 3238000,
+     "lag": 94937,
+     "produced": 3262500,
+     "eventsInHdfs": 3167701
+    },
+    {
+     "t": 654.9,
+     "replayed": 3268000,
+     "inHdfs": 3238000,
+     "lag": 100299,
+     "produced": 3268000,
+     "eventsInHdfs": 3167701
+    },
+    {
+     "t": 656.9,
+     "replayed": 3284000,
+     "inHdfs": 3277500,
+     "lag": 66017,
+     "produced": 3283500,
+     "eventsInHdfs": 3217701
+    },
+    {
+     "t": 659.7,
+     "replayed": 3290500,
+     "inHdfs": 3277500,
+     "lag": 72799,
+     "produced": 3290000,
+     "eventsInHdfs": 3217701
+    },
+    {
+     "t": 661.7,
+     "replayed": 3308500,
+     "inHdfs": 3277500,
+     "lag": 90229,
+     "produced": 3307500,
+     "eventsInHdfs": 3217701
+    },
+    {
+     "t": 663.7,
+     "replayed": 3314000,
+     "inHdfs": 3290500,
+     "lag": 95799,
+     "produced": 3313500,
+     "eventsInHdfs": 3217701
+    },
+    {
+     "t": 665.7,
+     "replayed": 3328500,
+     "inHdfs": 3304500,
+     "lag": 60299,
+     "produced": 3327500,
+     "eventsInHdfs": 3267701
+    },
+    {
+     "t": 667.8,
+     "replayed": 3334500,
+     "inHdfs": 3304500,
+     "lag": 66299,
+     "produced": 3333500,
+     "eventsInHdfs": 3267701
+    },
+    {
+     "t": 669.8,
+     "replayed": 3348500,
+     "inHdfs": 3331500,
+     "lag": 80376,
+     "produced": 3348000,
+     "eventsInHdfs": 3267701
+    },
+    {
+     "t": 671.8,
+     "replayed": 3356500,
+     "inHdfs": 3331500,
+     "lag": 88299,
+     "produced": 3355500,
+     "eventsInHdfs": 3267701
+    },
+    {
+     "t": 673.8,
+     "replayed": 3368500,
+     "inHdfs": 3331500,
+     "lag": 100453,
+     "produced": 3368000,
+     "eventsInHdfs": 3267701
+    },
+    {
+     "t": 675.8,
+     "replayed": 3377500,
+     "inHdfs": 3352500,
+     "lag": 59299,
+     "produced": 3376500,
+     "eventsInHdfs": 3317701
+    },
+    {
+     "t": 677.8,
+     "replayed": 3388500,
+     "inHdfs": 3365000,
+     "lag": 70514,
+     "produced": 3388000,
+     "eventsInHdfs": 3317701
+    },
+    {
+     "t": 679.8,
+     "replayed": 3399000,
+     "inHdfs": 3392500,
+     "lag": 30555,
+     "produced": 3398000,
+     "eventsInHdfs": 3367701
+    },
+    {
+     "t": 681.8,
+     "replayed": 3409000,
+     "inHdfs": 3392500,
+     "lag": 40605,
+     "produced": 3408000,
+     "eventsInHdfs": 3367701
+    },
+    {
+     "t": 683.8,
+     "replayed": 3419000,
+     "inHdfs": 3392500,
+     "lag": 50639,
+     "produced": 3418000,
+     "eventsInHdfs": 3367701
+    },
+    {
+     "t": 685.8,
+     "replayed": 3429000,
+     "inHdfs": 3417500,
+     "lag": 60664,
+     "produced": 3428000,
+     "eventsInHdfs": 3367701
+    },
+    {
+     "t": 687.8,
+     "replayed": 3439000,
+     "inHdfs": 3420000,
+     "lag": 70707,
+     "produced": 3438000,
+     "eventsInHdfs": 3367701
+    },
+    {
+     "t": 689.8,
+     "replayed": 3449000,
+     "inHdfs": 3420000,
+     "lag": 45846,
+     "produced": 3448000,
+     "eventsInHdfs": 3402632
+    },
+    {
+     "t": 691.9,
+     "replayed": 3458000,
+     "inHdfs": 3420000,
+     "lag": 54368,
+     "produced": 3457000,
+     "eventsInHdfs": 3402632
+    },
+    {
+     "t": 693.6,
+     "replayed": 3461613,
+     "inHdfs": 3429000,
+     "lag": 58981,
+     "produced": 3461613,
+     "eventsInHdfs": 3402632
+    },
+    {
+     "t": 698.6,
+     "replayed": 3461613,
+     "inHdfs": 3461613,
+     "lag": 8981,
+     "produced": 3461613,
+     "eventsInHdfs": 3452632
+    },
+    {
+     "t": 703.6,
+     "replayed": 3461613,
+     "inHdfs": 3461613,
+     "lag": 0,
+     "produced": 3461613,
+     "eventsInHdfs": 3461613
+    },
+    {
+     "t": 709.9,
+     "replayed": 3461613,
+     "inHdfs": 3461613,
+     "lag": 0,
+     "produced": 3461613,
+     "eventsInHdfs": 3461613
+    }
+   ],
+   "events": {
+    "files": 150,
+    "bytes": 1668122076,
+    "avgFileBytes": 11120814
+   },
+   "eventsProduced": 3461613
+  },
+  "results": {
+   "top_pages": {
+    "rows": 10,
+    "sha256": "de74119906d62ecbff1e914d740685f75ea3e8a36622b7bbf231645dbf131554"
+   },
+   "hits_per_hour": {
+    "rows": 24,
+    "sha256": "b20e9625cab820270de405ea1f54a065511b7d4721ae362772dab5db0db53085"
+   },
+   "hits_per_day": {
+    "rows": 58,
+    "sha256": "0117121cd0b07ec07cf7879c742c88b4f4df280f3633d54d610fce5c59d7f914"
+   },
+   "status_distribution": {
+    "rows": 8,
+    "sha256": "436bf663af9f3431076906d35c263755c0b80f1e56b1146bbff8c58df783b1ef"
+   },
+   "top_hosts": {
+    "rows": 10,
+    "sha256": "43e6566de719ed7559c305ef17b23c7d5c14a9f36b3893010a2d1e224e1dc7d9"
+   },
+   "data_quality": {
+    "rows": 1,
+    "sha256": "d83d7597a4d43637a786576acd918d5db079797fef4d6a8d901dd866dca4930c"
+   }
+  },
+  "steps": {
+   "reset": 7.7,
+   "replay": 711.2,
+   "counts": 4.0,
+   "hive-tables": 4.6,
+   "verify-ingestion": 112.3,
+   "hive-analysis": 756.6,
+   "sqoop-export": 84.8,
+   "fingerprint": 0.0
+  },
+  "batchSeconds": 958.3
+ }
+}

@@ -1,4 +1,4 @@
-# One image for every Hadoop-ecosystem service: Hadoop, Hive, Flume and Sqoop share the
+# One image for every Hadoop-ecosystem service: Hadoop, Hive, Flume, Sqoop and Spark share the
 # same Hadoop libraries and configuration, so they are installed together and each
 # container picks its role at start-up (see roles/).
 FROM eclipse-temurin:8-jdk-jammy
@@ -72,6 +72,26 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends python3-pip \
  && rm -rf /var/lib/apt/lists/* \
  && pip3 install --no-cache-dir confluent-kafka==2.6.1 'PyMySQL[rsa]==1.1.1'
+
+# Spark, for the speed layer of architecture B (Kafka -> Spark Structured Streaming -> HDFS).
+# Its own layer after everything above, so adding it never fetches Hadoop or Hive again.
+# The Kafka source of Spark is not in the distribution: its jars come from Maven Central.
+ARG SPARK_VERSION=3.5.9
+ARG SPARK_CHECKSUM=sha512:66097faf48b12f8673dc13256a44d731c27c86a5831cd8ca930c6fd9dd9bdf31d40593095e959461351d55da1a8e3ad5ed95e0b4b51bea87ca3989ab002ea8ce
+ARG SPARK_KAFKA_CLIENTS_VERSION=3.4.1
+ARG COMMONS_POOL2_VERSION=2.11.1
+ENV SPARK_HOME=/opt/spark \
+    PYSPARK_PYTHON=python3
+ENV PATH=${PATH}:${SPARK_HOME}/bin
+RUN fetch-apache "spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" "${SPARK_HOME}" "${SPARK_CHECKSUM}" \
+ && rm -rf "${SPARK_HOME}/examples" "${SPARK_HOME}/data" "${SPARK_HOME}/R" \
+ && for jar in \
+      "org/apache/spark/spark-sql-kafka-0-10_2.12/${SPARK_VERSION}/spark-sql-kafka-0-10_2.12-${SPARK_VERSION}.jar" \
+      "org/apache/spark/spark-token-provider-kafka-0-10_2.12/${SPARK_VERSION}/spark-token-provider-kafka-0-10_2.12-${SPARK_VERSION}.jar" \
+      "org/apache/kafka/kafka-clients/${SPARK_KAFKA_CLIENTS_VERSION}/kafka-clients-${SPARK_KAFKA_CLIENTS_VERSION}.jar" \
+      "org/apache/commons/commons-pool2/${COMMONS_POOL2_VERSION}/commons-pool2-${COMMONS_POOL2_VERSION}.jar"; do \
+      curl -fsSL --retry 3 -o "${SPARK_HOME}/jars/${jar##*/}" "${MAVEN_CENTRAL}/${jar}" || exit 1; \
+    done
 
 COPY config/hadoop/ ${HADOOP_CONF_DIR}/
 COPY config/hive/hive-site.xml ${HIVE_HOME}/conf/

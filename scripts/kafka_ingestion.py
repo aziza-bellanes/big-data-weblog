@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Architecture B, Kafka branch: structured events from the NASA files to HDFS.
+"""Kafka branch: structured events from the NASA files to Kafka, and an archive in HDFS.
 
     produce  read the source files, turn every line into a JSON event (events.py) and
              publish it to Kafka with an idempotent producer (acks=all); progress is
@@ -7,6 +7,8 @@
     consume  read Kafka in batches, write each batch to HDFS as a closed file per day,
              then commit the offsets: at-least-once delivery, duplicates are removed by
              event_id in Hive (kafka_events_unique).
+
+The topic has a second consumer, the Spark speed layer (spark_speed_layer.py).
 """
 import argparse
 import fcntl
@@ -152,7 +154,7 @@ def consume(args):
                          'enable.auto.commit': False, 'enable.auto.offset.store': False,
                          'auto.offset.reset': 'earliest', 'max.poll.interval.ms': 900000})
     # Absolute committed positions survive a process restart. A process-local event
-    # counter would reset to zero and leave an in-flight comparison waiting forever.
+    # counter would reset to zero and leave an in-flight run waiting forever.
     metadata = consumer.list_topics(args.topic, timeout=30).topics[args.topic]
     if metadata.error:
         raise RuntimeError(metadata.error)

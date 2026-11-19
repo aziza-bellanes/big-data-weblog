@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Full NASA baseline regression. Run after full ingestion, Hive analysis and Sqoop export.
 
-Checks the MySQL result tables of one architecture (ARCH, default: the configured one)
-against the figures of the complete July and August 1995 dataset.
+Checks the MySQL result tables against the figures of the complete July and August 1995 dataset.
 """
 import json
 import os

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Replay the NASA logs into the live log of one architecture, so its Flume agent sees a
-# "live" web server. Usage: ARCH=parallel|sequential replayer
+# Replay the NASA logs into the live log, so the Flume agent sees a
+# "live" web server. Usage: replayer
 set -euo pipefail
 # Installed from scripts/lib/common.sh by the Dockerfile.
 # shellcheck source=../../../scripts/lib/common.sh
@@ -21,7 +21,7 @@ mapfile -t inputs < <(printf '%s\n' "${found[@]}" | sort -t_ -k4.1,4.3M)
 input_args=()
 for file in "${inputs[@]}"; do input_args+=(--input "$file"); done
 
-log "replaying into $LIVE_LOG ($ARCH_LABEL)"
+log "replaying into $LIVE_LOG"
 exec python3 "$PROJECT_HOME/scripts/replay.py" \
     "${input_args[@]}" \
     --output "$LIVE_LOG" \

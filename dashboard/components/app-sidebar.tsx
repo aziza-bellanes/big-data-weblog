@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, ExternalLink, FolderTree, GitCompareArrows, LayoutDashboard } from "lucide-react";
+import { Activity, BarChart3, ExternalLink, FolderTree, LayoutDashboard, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,8 +20,8 @@ import {
 const PAGES = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/realtime", label: "Real-time", icon: Zap },
   { href: "/pipeline", label: "Live pipeline", icon: Activity },
-  { href: "/compare", label: "Compare", icon: GitCompareArrows },
   { href: "/explorer", label: "Data explorer", icon: FolderTree },
 ] as const;
 
@@ -94,7 +94,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-4 pb-4 text-xs text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-        Flume · Kafka · HDFS · Hive · Sqoop
+        Flume · Kafka · Spark · HDFS · Hive · Sqoop
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -15,7 +15,7 @@ import runs
 from control_server import (BadRequest, Conflict, Job, Runner, Step, StepState,
                             plan, resources)
 
-SEQ, PAR = 'sequential', 'parallel'
+PAR = 'parallel'
 
 
 def one_step(key='test', arch=None):
@@ -52,40 +52,22 @@ class RunnerTests(unittest.TestCase):
     def start(self, action, arch):
         return self.runner.start(action, arch, one_step(action, arch))
 
-    def test_jobs_of_different_architectures_overlap(self):
-        a = self.start('replay', SEQ)
-        b = self.start('replay', PAR)
-        self.assertEqual(len(self.runner.active), 2)
-        self.assertNotEqual(a.id, b.id)
-
-    def test_same_architecture_conflicts_are_rejected(self):
+    def test_conflicts_are_rejected(self):
         self.start('replay', PAR)
         with self.assertRaises(Conflict):
             self.start('ingest-flume', PAR)
         with self.assertRaises(Conflict):
             self.start('replay', PAR)
 
-    def test_sequential_pipeline_cannot_run_twice(self):
-        self.start('pipeline', SEQ)
-        with self.assertRaises(Conflict):
-            self.start('pipeline', SEQ)
-        self.start('pipeline', PAR)  # the other architecture is free
-
-    def test_sequential_replay_and_pipeline_do_not_conflict(self):
-        self.start('replay', SEQ)
-        self.start('pipeline', SEQ)
-        self.assertEqual(len(self.runner.active), 2)
-
-    def test_compare_conflicts_with_anything_running(self):
+    def test_pipeline_cannot_run_twice(self):
         self.start('pipeline', PAR)
         with self.assertRaises(Conflict):
-            self.runner.start('compare', None, one_step('compare'))
+            self.start('pipeline', PAR)
 
-    def test_anything_conflicts_with_a_running_compare(self):
-        self.runner.start('compare', None, one_step('compare'))
-        for action, arch in (('replay', SEQ), ('pipeline', PAR), ('ingest-kafka', PAR)):
-            with self.assertRaises(Conflict):
-                self.start(action, arch)
+    def test_replay_and_pipeline_do_not_conflict(self):
+        self.start('replay', PAR)
+        self.start('pipeline', PAR)
+        self.assertEqual(len(self.runner.active), 2)
 
     def test_parallel_branches_overlap_each_other(self):
         jobs = [self.start(action, PAR) for action in ('ingest-flume', 'ingest-kafka', 'ingest-sqoop')]
@@ -95,13 +77,13 @@ class RunnerTests(unittest.TestCase):
             self.start('ingest-kafka', PAR)
 
     def test_replay_started_outside_the_dashboard_is_a_conflict(self):
-        with patch('control_server.replay_running', side_effect=lambda arch: arch == SEQ):
+        with patch('control_server.replay_running', return_value=True):
             with self.assertRaises(Conflict):
-                self.start('replay', SEQ)
-            self.start('replay', PAR)
+                self.start('replay', PAR)
+            self.start('pipeline', PAR)  # batch work does not touch the live log
 
     def test_finished_job_moves_to_history_and_frees_resources(self):
-        job = self.start('pipeline', SEQ)
+        job = self.start('pipeline', PAR)
         self.release.set()
         deadline = time.monotonic() + 2
         while job.status == 'running' and time.monotonic() < deadline:
@@ -117,6 +99,7 @@ class SpawnFailureTests(unittest.TestCase):
     def test_spawn_failure_is_terminal_and_releases_resource(self):
         runner = Runner()
         with patch('control_server.replay_running', return_value=False), \
+                patch('control_server.runs.save'), \
                 patch.object(runner, '_run_step', side_effect=OSError('missing executable')):
             job = runner.start('ingest-kafka', PAR, one_step('test', PAR))
             deadline = time.monotonic() + 2
@@ -136,38 +119,23 @@ class PlanTests(unittest.TestCase):
     def keys(self, body):
         return [(s.key, s.arch) for s in plan(body)[2]]
 
-    def test_compare_with_fresh_default_runs_reset_then_both_architectures(self):
-        action, arch, steps, params = plan({'action': 'compare'})
-        self.assertEqual((action, arch), ('compare', None))
-        self.assertEqual(params, {'rate': 5000, 'limit': 0, 'fresh': True})
-        pairs = [(s.key, s.arch) for s in steps]
-        # the two resets come first, in any architecture order
-        self.assertEqual(sorted(pairs[:2]), [('reset', PAR), ('reset', SEQ)])
-        expected = [(k, SEQ) for k in ('replay', 'counts', 'hive-tables', 'sqoop-import',
-                                       'hive-analysis', 'sqoop-export', 'fingerprint')]
-        expected += [(k, PAR) for k in ('replay', 'counts', 'hive-tables', 'verify-ingestion',
-                                        'hive-analysis', 'sqoop-export', 'fingerprint')]
-        expected.append(('compare', None))
-        self.assertEqual(pairs[2:], expected)
+    def test_pipeline_checks_the_branches_instead_of_importing(self):
+        keys = [k for k, _ in self.keys({'action': 'pipeline'})]
+        self.assertEqual(keys, ['hive-tables', 'verify-ingestion', 'hive-analysis', 'sqoop-export'])
 
-    def test_compare_without_fresh_has_no_reset(self):
-        pairs = self.keys({'action': 'compare', 'fresh': False})
-        self.assertNotIn('reset', [k for k, _ in pairs])
-        self.assertEqual(pairs[0], ('replay', SEQ))
-        self.assertEqual(pairs[-1], ('compare', None))
-
-    def test_pipelines_differ_between_architectures(self):
-        sequential = [k for k, _ in self.keys({'action': 'pipeline', 'arch': SEQ})]
-        parallel = [k for k, _ in self.keys({'action': 'pipeline', 'arch': PAR})]
-        self.assertIn('sqoop-import', sequential)
-        self.assertNotIn('sqoop-import', parallel)
-        self.assertIn('verify-ingestion', parallel)
+    def test_analysis_ends_with_the_speed_layer_check(self):
+        command = plan({'action': 'hive-analysis'})[2][0].command
+        self.assertTrue(command[-2].endswith('hive/02_analysis.sql'))
+        self.assertTrue(command[-1].endswith('hive/05_speed_check.sql'))
+        tables = plan({'action': 'hive-tables'})[2][0].command
+        self.assertTrue(tables[-1].endswith('hive/04_speed_layer.sql'))
 
     def test_replay_step_environment(self):
-        _, arch, steps, params = plan({'action': 'replay', 'arch': SEQ, 'rate': 1000, 'limit': 50})
+        _, arch, steps, params = plan({'action': 'replay', 'rate': 1000, 'limit': 50})
         env = dict(steps[0].env)
-        self.assertEqual(arch, SEQ)
-        self.assertEqual(env['ARCH'], SEQ)
+        self.assertEqual(arch, PAR)
+        self.assertEqual(env['ARCH'], PAR)
+        self.assertTrue(steps[0].command[-1].endswith('parallel_ingestion.py'))
         self.assertEqual(env['REPLAY_RATE'], '1000')
         self.assertEqual(env['REPLAY_LIMIT'], '50')
         self.assertEqual(params, {'rate': 1000, 'limit': 50})
@@ -187,13 +155,11 @@ class PlanTests(unittest.TestCase):
             {'action': 'replay', 'limit': -1},
             {'action': 'replay', 'limit': True},
             {'action': 'replay', 'limit': 1.5},
-            {'action': 'compare', 'rate': 7},
             {'action': 'replay', 'arch': 'nope'},
+            {'action': 'ingest-kafka', 'arch': 'sequential'},
+            {'action': 'compare'},
             {'action': 'frobnicate'},
             {},
-            {'action': 'ingest-kafka', 'arch': SEQ},
-            {'action': 'ingest-flume', 'arch': SEQ},
-            {'action': 'verify-ingestion', 'arch': SEQ},
         ]
         for body in bad:
             with self.subTest(body=body), self.assertRaises(BadRequest):
@@ -202,23 +168,11 @@ class PlanTests(unittest.TestCase):
 
 class ResourcesTests(unittest.TestCase):
     def test_examples(self):
-        self.assertEqual(resources('replay', SEQ), {'seq-ingest'})
-        self.assertEqual(resources('pipeline', SEQ), {'seq-batch'})
-        self.assertEqual(resources('reset', SEQ), {'seq-ingest', 'seq-batch'})
         self.assertEqual(resources('ingest-kafka', PAR), {'par-kafka'})
         self.assertEqual(resources('sqoop-import', PAR), {'par-sqoop'})
         self.assertEqual(resources('pipeline', PAR), {'par-batch'})
         self.assertEqual(resources('replay', PAR), {'par-flume', 'par-kafka', 'par-sqoop'})
-        self.assertEqual(resources('compare', None), resources('reset', SEQ) | resources('reset', PAR))
-
-    def test_architectures_never_share_a_resource(self):
-        actions = ('replay', 'reset', 'pipeline', 'counts', 'hive-tables', 'sqoop-import',
-                   'hive-analysis', 'sqoop-export')
-        for a in actions:
-            for b in actions:
-                with self.subTest(sequential=a, parallel=b):
-                    self.assertFalse(resources(a, SEQ) & resources(b, PAR))
-
+        self.assertEqual(resources('reset', PAR), {'par-flume', 'par-kafka', 'par-sqoop', 'par-batch'})
 
 class JobRecordTests(unittest.TestCase):
     @staticmethod
@@ -252,19 +206,8 @@ class JobRecordTests(unittest.TestCase):
         json.dumps(record)
 
     def test_batch_seconds_is_none_without_batch_steps(self):
-        job = Job('replay', SEQ, [self.state('replay', SEQ, 0.0, 4.0)])
-        self.assertIsNone(job.record()['architectures'][SEQ]['batchSeconds'])
-
-    def test_compare_job_is_a_comparison(self):
-        steps = [self.state('replay', SEQ, 0.0, 1.0), self.state('replay', PAR, 1.0, 2.0),
-                 StepState(Step('compare', 'Compare'))]
-        job = Job('compare', None, steps)
-        job.results['comparison'] = {'allResultsMatch': True}
-        record = job.record()
-        self.assertEqual(record['kind'], 'comparison')
-        self.assertEqual(set(record['architectures']), {SEQ, PAR})
-        self.assertEqual(record['comparison'], {'allResultsMatch': True})
-
+        job = Job('replay', PAR, [self.state('replay', PAR, 0.0, 4.0)])
+        self.assertIsNone(job.record()['architectures'][PAR]['batchSeconds'])
 
 class RunsTests(unittest.TestCase):
     def setUp(self):
@@ -278,17 +221,7 @@ class RunsTests(unittest.TestCase):
     @staticmethod
     def record(run_id='abc123'):
         return {'id': run_id, 'architectures': {
-            'parallel': {'ingestion': {'lines': 3, 'samples': [{'t': 1}, {'t': 2}]}},
-            'sequential': {'ingestion': {'lines': 3, 'samples': [{'t': 1}]}}}}
-
-    def test_results_match(self):
-        same = {t: {'rows': 1, 'sha256': 'x'} for t in runs.RESULT_TABLES}
-        other = dict(same, top_pages={'rows': 2, 'sha256': 'y'})
-        match = runs.results_match(same, other)
-        self.assertEqual(set(match), set(runs.RESULT_TABLES))
-        self.assertFalse(match['top_pages'])
-        self.assertTrue(match['top_hosts'])
-        self.assertFalse(any(runs.results_match({}, same).values()))
+            'parallel': {'ingestion': {'lines': 3, 'samples': [{'t': 1}, {'t': 2}]}}}}
 
     def test_strip_samples_does_not_mutate(self):
         record = self.record()
@@ -329,7 +262,7 @@ class RunsTests(unittest.TestCase):
 
     def test_settle_publishes_progress_until_files_close(self):
         with patch.object(runs, 'sink_drained', return_value=0), patch.object(runs, 'read_counter', return_value=0):
-            ingestion = runs.Ingestion(SEQ)
+            ingestion = runs.Ingestion(PAR)
         points = [dict(replayed=10, inHdfs=5, lag=5),
                   dict(replayed=10, inHdfs=10, lag=0),
                   dict(replayed=10, inHdfs=10, lag=0)]
@@ -344,45 +277,45 @@ class RunsTests(unittest.TestCase):
 
 class ArchitecturesTests(unittest.TestCase):
     def test_get(self):
-        arch = architectures.get(SEQ)
+        arch = architectures.get(PAR)
         self.assertEqual(arch['liveLog'], arch['liveDir'] + '/access.log')
-        self.assertEqual(arch['name'], SEQ)
+        self.assertEqual(arch['name'], PAR)
         with self.assertRaises(ValueError):
             architectures.get('nope')
 
     def test_get_defaults_to_environment_then_default(self):
-        with patch.dict('os.environ', {'ARCH': SEQ}):
-            self.assertEqual(architectures.get()['name'], SEQ)
+        with patch.dict('os.environ', {'ARCH': PAR}):
+            self.assertEqual(architectures.get()['name'], PAR)
         with patch.dict('os.environ', {}, clear=True):
             self.assertEqual(architectures.get()['name'], architectures.DEFAULT)
 
     def test_env_output(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(architectures.main(['x', 'env', SEQ]), 0)
+            self.assertEqual(architectures.main(['x', 'env', PAR]), 0)
         lines = out.getvalue().splitlines()
-        self.assertIn('export WEBLOGS_DB=weblogs', lines)
-        self.assertIn('export HIVE_DB=weblogs', lines)
+        self.assertIn('export WEBLOGS_DB=weblogs_parallel', lines)
+        self.assertIn('export SPEED_DIR=/data/nasa/streaming/spark', lines)
 
     def test_list_and_usage(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(architectures.main(['x', 'list']), 0)
-        self.assertEqual(set(out.getvalue().split()), {SEQ, PAR})
+        self.assertEqual(out.getvalue().split(), [PAR])
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(architectures.main(['x']), 2)
 
-    def test_architectures_share_no_storage(self):
-        a, b = architectures.get(SEQ), architectures.get(PAR)
-        for key in ('rawDir', 'eventsDir', 'referenceDir', 'resultsRoot', 'liveDir',
-                    'hiveDb', 'mysqlDb', 'kafkaTopic'):
-            with self.subTest(key=key):
-                self.assertNotEqual(a[key], b[key])
-        # no HDFS folder of one is inside a folder of the other
-        folders = ('rawDir', 'eventsDir', 'referenceDir', 'resultsRoot')
-        for x in (a[k] for k in folders if a[k]):
-            for y in (b[k] for k in folders if b[k]):
-                self.assertFalse(x == y or x.startswith(y + '/') or y.startswith(x + '/'), (x, y))
+    def test_zones_do_not_overlap(self):
+        """No HDFS zone is inside another, so a reset of one output never touches the others,
+        and the Spark checkpoint survives a reset."""
+        arch = architectures.get(PAR)
+        folders = [arch[k] for k in ('rawDir', 'eventsDir', 'speedDir', 'speedCheckpoint',
+                                      'referenceDir', 'resultsRoot')]
+        for x in folders:
+            for y in folders:
+                if x != y:
+                    self.assertFalse(x.startswith(y + '/'), (x, y))
+        self.assertEqual(len(set(folders)), len(folders))
 
 
 if __name__ == '__main__':

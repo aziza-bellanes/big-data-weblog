@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { ArchitectureSwitch } from "@/components/architecture-switch";
 import { TemplateBars } from "@/components/template-bars";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -24,7 +24,6 @@ export function PageHeader({ number, eyebrow, title, description, aside }: PageH
         <Separator orientation="vertical" className="mr-1 h-5" />
         <span className="eyebrow text-muted-foreground">{eyebrow}</span>
         <div className="ml-auto flex items-center gap-2">
-          <ArchitectureSwitch />
           <ThemeToggle />
         </div>
       </header>
@@ -57,7 +56,7 @@ export function PageBody({ children }: { children: ReactNode }) {
 }
 
 /** Section title in the template style: a number block, a wide uppercase title and a lead. */
-export function SectionTitle({ number, title, lead }: { number?: string; title: string; lead?: string }) {
+export function SectionTitle({ number, title, lead, layer }: { number?: string; title: string; lead?: string; layer?: string }) {
   return (
     <div className="flex items-end gap-4 pt-4">
       {number ? (
@@ -71,21 +70,21 @@ export function SectionTitle({ number, title, lead }: { number?: string; title: 
         </span>
       )}
       <div>
-        <h2 className="font-display text-lg text-primary uppercase">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-display text-lg text-primary uppercase">{title}</h2>
+          {layer && <Badge variant="outline">{layer}</Badge>}
+        </div>
         {lead && <p className="text-sm text-muted-foreground">{lead}</p>}
       </div>
     </div>
   );
 }
 
-/** Which architecture's MySQL database the figures below come from. */
-export function ResultsSource({ label, database }: { label: string; database: string }) {
+/** Which MySQL database the figures below come from. */
+export function ResultsSource({ database }: { database: string }) {
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-      <span className="rounded-md bg-primary px-2 py-0.5 font-display text-[0.65rem] text-primary-foreground uppercase">
-        {label}
-      </span>
-      results from MySQL <code className="font-mono">{database}</code>. Switch architecture in the top bar.
+    <p className="text-xs text-muted-foreground">
+      Batch results from MySQL <code className="font-mono">{database}</code>, exported by Sqoop after the Hive analysis.
     </p>
   );
 }

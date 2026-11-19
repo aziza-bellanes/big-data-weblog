@@ -1,7 +1,7 @@
 -- Reference data imported into HDFS by Sqoop, and result tables filled by Sqoop export.
 -- Result table column order must match the Hive tables in hive/01_create_tables.sql.
--- Applied to the database of each architecture (weblogs, weblogs_parallel) by
--- mysql/init/02_schemas.sh; safe to apply again (make db-init).
+-- Applied to weblogs_parallel by mysql/init/02_schemas.sh; safe to apply again
+-- (make db-init).
 
 CREATE TABLE IF NOT EXISTS status_codes (
     code     SMALLINT    NOT NULL PRIMARY KEY,

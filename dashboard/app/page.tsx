@@ -7,6 +7,7 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { PageBody, PageHeader, ResultsSource, SectionTitle } from "@/components/page-header";
 import { LiveIndicator } from "@/components/pipeline/live-indicator";
 import { PipelineStrip } from "@/components/pipeline/pipeline-strip";
+import { LatestAlerts } from "@/components/realtime/latest-alerts";
 import { RankedTable } from "@/components/ranked-table";
 import { TemplateBars } from "@/components/template-bars";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ export default function OverviewPage() {
         number="01"
         eyebrow="Overview"
         title="NASA web traffic"
-        description="Two months of requests to the NASA Kennedy Space Center web server (July and August 1995), ingested into HDFS by one of two architectures (Flume, Kafka and Sqoop in a chain or side by side), analysed with Hive and exported to MySQL with Sqoop."
+        description="Two months of requests to the NASA Kennedy Space Center web server (July and August 1995), ingested side by side by Flume, Kafka and Sqoop into HDFS, analysed with Hive and exported to MySQL with Sqoop, and followed in real time by a Spark speed layer."
         aside={<LiveIndicator />}
       />
       <PageBody>
@@ -40,13 +41,13 @@ async function OverviewResults() {
     return (
       <>
         <PipelineStrip />
-        <EmptyResults arch={arch} />
+        <EmptyResults />
       </>
     );
   }
   return (
     <>
-      <ResultsSource label={arch.label} database={arch.mysqlDb} />
+      <ResultsSource database={arch.mysqlDb} />
       <Hero results={results} />
       <PipelineStrip />
       <SectionTitle title="Questions, answered" lead="What Hive found in every line stored in HDFS." />
@@ -75,6 +76,7 @@ async function OverviewResults() {
           </CardContent>
         </Card>
       </div>
+      <LatestAlerts />
     </>
   );
 }

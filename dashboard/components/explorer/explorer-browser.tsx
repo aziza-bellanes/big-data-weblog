@@ -2,22 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { ChevronRight, File, Folder, TriangleAlert } from "lucide-react";
-import { usePipelineContext } from "@/components/pipeline/pipeline-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { archLetter } from "@/lib/arch";
 import { formatBytes } from "@/lib/format";
-import type { ArchName } from "@/lib/types";
 
-type Zone = "raw" | "events" | "reference" | "results";
+type Zone = "raw" | "events" | "speed" | "reference" | "results";
 
 const ZONES: { id: Zone; label: string; about: string }[] = [
   { id: "raw", label: "Raw", about: "Raw log lines written by Flume, one dt=YYYY-MM-DD folder per day." },
-  { id: "events", label: "Events", about: "JSON events written by the Kafka HDFS writer (architecture B only)." },
+  { id: "events", label: "Events", about: "JSON events written by the Kafka HDFS writer." },
+  { id: "speed", label: "Speed layer", about: "Per-minute Parquet figures written by Spark Streaming from Kafka." },
   { id: "reference", label: "Reference", about: "The status_codes table imported from MySQL by Sqoop." },
   { id: "results", label: "Results", about: "The six Hive result tables." },
 ];
@@ -40,14 +38,13 @@ interface Payload {
 }
 
 interface Nav {
-  arch: ArchName;
   zone: Zone;
   /** Absolute HDFS path; null means the zone root. */
   path: string | null;
   preview: boolean;
 }
 
-const requestKey = (n: Nav) => `${n.arch}|${n.zone}|${n.path ?? ""}|${n.preview}`;
+const requestKey = (n: Nav) => `${n.zone}|${n.path ?? ""}|${n.preview}`;
 
 const timeFormat = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium" });
 
@@ -57,24 +54,17 @@ function sortEntries(files: Entry[]): Entry[] {
   );
 }
 
-/** Browse the HDFS zones of the selected architecture, read-only. */
+/** Browse the HDFS zones, read-only. */
 export function ExplorerBrowser() {
-  const arch = usePipelineContext().snapshot?.arch ?? null;
   const [nav, setNav] = useState<Nav | null>(null);
   const [result, setResult] = useState<{ key: string; data: Payload } | null>(null);
 
-  // A new architecture starts again at its raw zone root.
-  const current: Nav | null = arch
-    ? nav && nav.arch === arch
-      ? nav
-      : { arch, zone: "raw", path: null, preview: false }
-    : null;
-  const key = current ? requestKey(current) : null;
+  const current: Nav = nav ?? { zone: "raw", path: null, preview: false };
+  const key = requestKey(current);
 
   useEffect(() => {
-    if (!current || !key) return;
     const controller = new AbortController();
-    const query = new URLSearchParams({ arch: current.arch, zone: current.zone });
+    const query = new URLSearchParams({ zone: current.zone });
     if (current.path) query.set("path", current.path);
     if (current.preview) query.set("preview", "1");
     fetch(`/api/explorer?${query}`, { signal: controller.signal, cache: "no-store" })
@@ -88,16 +78,6 @@ export function ExplorerBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  if (!current) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-9 w-72" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  const zones = ZONES.filter((z) => z.id !== "events" || current.arch === "parallel");
   const zone = ZONES.find((z) => z.id === current.zone) ?? ZONES[0];
   const data = result && result.key === key ? result.data : null;
   const go = (patch: Partial<Nav>) => setNav({ ...current, ...patch });
@@ -113,14 +93,13 @@ export function ExplorerBrowser() {
       <div className="flex flex-wrap items-center gap-3">
         <Tabs value={current.zone} onValueChange={(v) => go({ zone: v as Zone, path: null, preview: false })}>
           <TabsList>
-            {zones.map((z) => (
+            {ZONES.map((z) => (
               <TabsTrigger key={z.id} value={z.id}>
                 {z.label}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
-        <Badge variant="secondary">Architecture {archLetter(current.arch)}</Badge>
       </div>
 
       <Card>

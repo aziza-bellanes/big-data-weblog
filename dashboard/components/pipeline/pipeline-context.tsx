@@ -3,15 +3,12 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { usePipeline, type PipelineState } from "@/hooks/use-pipeline";
-import type { ArchName, JobAction } from "@/lib/types";
+import type { JobAction } from "@/lib/types";
 
 export interface JobRequest {
   action: JobAction;
-  /** Defaults to the architecture selected with the switch; a comparison runs both. */
-  arch?: ArchName;
   rate?: number;
   limit?: number;
-  fresh?: boolean;
 }
 
 interface PipelineContextValue extends PipelineState {
@@ -28,7 +25,6 @@ export const ACTION_LABELS: Record<JobAction, string> = {
   pipeline: "Batch pipeline",
   counts: "No-loss check",
   reset: "Reset",
-  compare: "Comparison",
   "hive-tables": "Create Hive tables",
   "sqoop-import": "Sqoop import",
   "hive-analysis": "Hive analysis",

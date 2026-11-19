@@ -14,9 +14,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useNow } from "@/hooks/use-now";
-import { archLetter } from "@/lib/arch";
 import { formatCompact, formatDuration } from "@/lib/format";
-import type { ArchName, Job, JobAction } from "@/lib/types";
+import type { Job, JobAction } from "@/lib/types";
 import { ACTION_LABELS, usePipelineContext } from "./pipeline-context";
 
 export const RATES = [1000, 2000, 5000, 10000, 20000] as const;
@@ -26,49 +25,45 @@ export const SCOPES = [
   { value: "200000", label: "First 200,000 lines" },
 ] as const;
 
-/** What each architecture's buttons do; mirrors PIPELINES in scripts/control_server.py. */
-const COPY: Record<ArchName, { ingest: string; ingestHint: string; check: string; batchHint: string; steps: JobAction[] }> = {
-  sequential: {
-    ingest: "Replay the logs",
-    ingestHint: "Writes the 1995 lines to the live log; Flume agent 1 sends them to Kafka, agent 2 to HDFS.",
-    check: "Compares the lines replayed with the lines in HDFS.",
-    batchHint: "Hive tables, Sqoop import, Hive analysis, Sqoop export.",
-    steps: ["hive-tables", "sqoop-import", "hive-analysis", "sqoop-export"],
-  },
-  parallel: {
-    ingest: "Run the three branches",
-    ingestHint: "At once: the log replay for Flume, JSON events through Kafka and the Sqoop import of status_codes.",
-    check: "Lines replayed against HDFS; then every branch against its source.",
-    batchHint: "Hive tables, branch check, Hive analysis, Sqoop export.",
-    steps: ["hive-tables", "verify-ingestion", "hive-analysis", "sqoop-export"],
-  },
+/** What the buttons do; mirrors PIPELINES in scripts/control_server.py. */
+const COPY = {
+  ingest: "Run the three branches",
+  ingestHint:
+    "At once: the log replay for Flume, JSON events through Kafka (archived to HDFS and processed by Spark) and the Sqoop import of status_codes.",
+  check: "Lines replayed against HDFS; then every branch against its source.",
+  batchHint: "Hive tables, branch check, Hive analysis, Sqoop export.",
+  steps: ["hive-tables", "verify-ingestion", "hive-analysis", "sqoop-export"] as JobAction[],
 };
 const BRANCHES: JobAction[] = ["ingest-flume", "ingest-kafka", "ingest-sqoop"];
 
-/** Run the selected architecture: ingestion, checks and the batch part, and stop what is running. */
+/** Run the pipeline: ingestion, checks and the batch part, and stop what is running. */
 export function RunPanel() {
   const { snapshot, busy, startJob, cancelJob } = usePipelineContext();
   const [rate, setRate] = useState<number>(5000);
   const [limit, setLimit] = useState<string>("0");
 
-  const arch = snapshot?.arch ?? null;
   const control = snapshot?.control ?? null;
-  const mine = control?.active.filter((job) => job.arch === arch || job.action === "compare") ?? [];
-  const external = arch ? !!control?.replayRunning[arch] : false;
+  const mine = control?.active ?? [];
+  const external = !!control?.replayRunning.parallel;
   const blockedBy = !snapshot
     ? "Connecting…"
     : !control
       ? "The control service in the client container is not reachable. Start the stack with make up."
-      : mine.length === 0 && external
-        ? "A replay started with make replay is running for this architecture."
-        : null;
-  const disabled = busy || !control || mine.length > 0 || external;
+      : control.readiness && !control.readiness.ready
+        ? control.readiness.problems.join(" ")
+        : mine.length === 0 && external
+          ? "A replay started with make replay is running."
+          : null;
+  const disabled = busy || !control || control.readiness?.ready === false || mine.length > 0 || external;
+  // Reset can reclaim space while YARN is unhealthy; its server-side preflight
+  // still refuses a read-only HDFS before touching any checkpoint.
+  const resetDisabled = busy || !control || mine.length > 0 || external;
   const datasetLines = control?.datasetLines ?? 0;
   const ingested = !!datasetLines && (snapshot?.replay.linesWritten ?? 0) >= datasetLines
-    && (snapshot?.producer === null || (snapshot?.producer?.linesWritten ?? 0) >= datasetLines);
+    && (snapshot?.producer.linesWritten ?? 0) >= datasetLines;
 
-  if (!arch) return <Card className="h-44 animate-pulse" />;
-  const copy = COPY[arch];
+  if (!snapshot) return <Card className="h-44 animate-pulse" />;
+  const copy = COPY;
   const branchRunning = (action: JobAction) => mine.some((job) => job.action === action);
   const onlyBranchesRunning = mine.every((job) => BRANCHES.includes(job.action));
 
@@ -108,7 +103,7 @@ export function RunPanel() {
             disabled={disabled || ingested}
             onClick={() => startJob({ action: "replay", rate, limit: Number(limit) })}
           >
-            <Play /> {ingested ? "Ingestion complete" : arch === "parallel" ? "Start the three branches" : "Start replay"}
+            <Play /> {ingested ? "Ingestion complete" : "Start the three branches"}
           </Button>
         </Block>
 
@@ -117,11 +112,9 @@ export function RunPanel() {
             <Button variant="outline" className="w-fit" disabled={disabled} onClick={() => startJob({ action: "counts" })}>
               <ShieldCheck /> Run no-loss check
             </Button>
-            {arch === "parallel" && (
-              <Button variant="outline" className="w-fit" disabled={disabled} onClick={() => startJob({ action: "verify-ingestion" })}>
-                <ShieldCheck /> Check every branch
-              </Button>
-            )}
+            <Button variant="outline" className="w-fit" disabled={disabled} onClick={() => startJob({ action: "verify-ingestion" })}>
+              <ShieldCheck /> Check every branch
+            </Button>
           </div>
         </Block>
 
@@ -151,35 +144,31 @@ export function RunPanel() {
       </CardContent>
 
       <div className="flex flex-wrap items-center gap-2 border-t px-5 py-3">
-        {arch === "parallel" && (
-          <>
-            <span className="mr-1 text-xs text-muted-foreground">One branch on its own:</span>
-            {BRANCHES.map((action) => (
-              <Button
-                key={action}
-                size="sm"
-                variant="outline"
-                disabled={busy || !control || external || branchRunning(action) || !onlyBranchesRunning}
-                onClick={() => startJob({ action, rate, limit: Number(limit) })}
-              >
-                {ACTION_LABELS[action]}
-              </Button>
-            ))}
-          </>
-        )}
+        <span className="mr-1 text-xs text-muted-foreground">One branch on its own:</span>
+        {BRANCHES.map((action) => (
+          <Button
+            key={action}
+            size="sm"
+            variant="outline"
+            disabled={busy || !control || control.readiness?.ready === false || external || branchRunning(action) || !onlyBranchesRunning}
+            onClick={() => startJob({ action, rate, limit: Number(limit) })}
+          >
+            {ACTION_LABELS[action]}
+          </Button>
+        ))}
         <ConfirmDialog
-          title={`Empty ${archLetter(arch)}'s data?`}
+          title="Empty the pipeline's data?"
           confirmLabel="Empty it"
           onConfirm={() => startJob({ action: "reset" })}
           trigger={
-            <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" disabled={disabled}>
+            <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" disabled={resetDisabled}>
               <Eraser /> Start again from zero
             </Button>
           }
         >
           <p>
-            Deletes this architecture&apos;s live log and checkpoints, its HDFS folders and its MySQL results, so the next
-            run starts from the first line. The other architecture is not touched.
+            Deletes the live log and checkpoints, the HDFS folders (including the Spark speed layer&apos;s output) and the MySQL
+            results, so the next run starts from the first line.
           </p>
         </ConfirmDialog>
       </div>

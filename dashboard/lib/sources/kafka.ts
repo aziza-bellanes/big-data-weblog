@@ -29,7 +29,7 @@ function getAdmin(): Promise<Admin> {
 export async function fetchKafkaStatus(topic: string, consumerGroup: string): Promise<KafkaStatus> {
   try {
     const client = await getAdmin();
-    // Sequential on purpose: concurrent admin calls on a fresh connection race on the
+    // One after the other on purpose: concurrent admin calls on a fresh connection race on the
     // metadata refresh and fail with "No brokers in the broker pool".
     const ends = await client.fetchTopicOffsets(topic);
     const committed = await client.fetchOffsets({ groupId: consumerGroup, topics: [topic] });

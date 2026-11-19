@@ -7,7 +7,7 @@ const ACTIVE_WINDOW_MS = 3000;
 
 /**
  * Progress read from a resumable checkpoint file: the replayer's (lines written to the live
- * log) or, in architecture B, the Kafka producer's (events acknowledged by Kafka).
+ * log) or, the Kafka producer's (events acknowledged by Kafka).
  */
 export async function fetchCheckpoint(file: string): Promise<ReplayStatus> {
   try {

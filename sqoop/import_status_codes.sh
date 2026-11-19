@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Import the MySQL status_codes reference table into HDFS for the Hive join.
-# Usage: ARCH=parallel|sequential import_status_codes.sh
+# Usage: import_status_codes.sh
 #
 # The import lands in a staging folder, is checked against MySQL, then replaces the
 # published copy; the previous copy is kept until the swap succeeds, so a failed import
@@ -18,7 +18,7 @@ readonly BACKUP_DIR="${TARGET_DIR}_previous"
 require_cmd sqoop hdfs
 mkdir -p "$LIVE_DIR"
 exec 9>"$LIVE_DIR/sqoop-import.lock"
-flock -n 9 || die "another Sqoop import is running for $ARCH_LABEL"
+flock -n 9 || die "another Sqoop import is running"
 
 if ! hdfs dfs -test -d "$TARGET_DIR" && hdfs dfs -test -d "$BACKUP_DIR"; then
     hdfs dfs -mv "$BACKUP_DIR" "$TARGET_DIR"

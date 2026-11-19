@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Architecture B: start its three ingestion branches at once and wait for all of them.
+"""Start the three ingestion branches at once and wait for all of them.
 
 Flume (replay into the live log), Kafka (event producer) and Sqoop (reference import) run
 as independent processes; one failing never stops the others, and each result is reported.
+The Spark speed layer is a long-running service (spark-streaming) already listening on the
+Kafka topic, so it processes the events as the Kafka branch publishes them.
 """
 import json
 import os

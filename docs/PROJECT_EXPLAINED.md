@@ -6,14 +6,16 @@ This document explains the whole project to someone who has never touched a big 
 
 ## 1. What this project is
 
-We took the real access logs of the NASA Kennedy Space Center web server for July and August 1995, about 3.46 million lines, and built a small but complete big data pipeline around them. A script replays the old logs as if the website were live. Flume collects the lines, Kafka buffers them, a second Flume agent stores them in HDFS, Hive runs SQL over them, and Sqoop copies the results into MySQL, where a web dashboard shows them. Everything runs in Docker containers on one laptop and starts with one command.
+We took the real access logs of the NASA Kennedy Space Center web server for July and August 1995, about 3.46 million lines, and built a small but complete big data pipeline around them. A script replays the old logs as if the website were live. Three ingestion branches start together: Flume collects the raw lines into HDFS, Kafka carries one structured event per line (stored in HDFS and also read by Spark, which computes live figures within seconds), and Sqoop brings in a reference table from MySQL. Hive runs SQL over the raw lines, and Sqoop copies the results into MySQL, where a web dashboard shows them. Everything runs in Docker containers on one laptop and starts with one command.
 
-The pipeline answers four questions:
+The pipeline answers six questions. The first four come from the batch layer, the last two from the speed layer:
 
 1. What are the 10 most visited pages?
 2. How is traffic distributed over the hours of the day?
 3. What share of requests end in errors (404, 500, ...)?
 4. Who are the 10 most active client hosts?
+5. Is anything suspicious happening? Spark raises alerts for traffic spikes, 404 bursts, server errors and a single host flooding the server.
+6. Do the two layers agree? Hive and Spark are compared day by day (58 of 58 days match).
 
 ---
 
@@ -63,9 +65,9 @@ An analogy: learning to fly on a small training plane. The plane is tiny, but th
 | Mode | Idea | In our project |
 |------|------|----------------|
 | Batch | Collect a lot of data, then process it all at once, later | Hive queries over all the stored days |
-| Near-real-time (streaming) | Process data continuously, a few seconds after it appears | Flume and Kafka moving each line as it is written |
+| Near-real-time (streaming) | Process data continuously, a few seconds after it appears | Flume and Kafka moving each line as it is written, and Spark computing traffic per minute |
 
-Batch is like doing the laundry once a week; streaming is like washing each dish right after you use it. Our project does both: lines flow in continuously, and the analysis runs in batch on top.
+Batch is like doing the laundry once a week; streaming is like washing each dish right after you use it. Our project does both: lines flow in continuously, Spark answers within seconds, and the exact analysis runs in batch on top. Keeping both on purpose is called a **Lambda architecture**: a **batch layer** (exact, but late) and a **speed layer** (early, but it must be checked against the exact one). The project checks it automatically (section 3.11).
 
 ---
 
@@ -77,14 +79,19 @@ The big picture first:
 NASA .gz files
      │
      ▼
- replayer ──► access.log ──► Flume agent 1 ──► Kafka topic "web-logs" ──► Flume agent 2
-                             (TAILDIR → Kafka)     (3 partitions)          (Kafka → HDFS)
-                                                                                 │
-                                                                                 ▼
- dashboard ◄── MySQL ◄── Sqoop export ◄── Hive result tables ◄── Hive ◄── HDFS /data/weblogs/dt=YYYY-MM-DD
-                 │                              ▲
-                 └── status_codes ── Sqoop import ┘
+ replayer ──► access.log ──► Flume ─────────────────────────────► HDFS raw lines  /data/nasa/raw/flume/dt=YYYY-MM-DD
+     │
+     └──► Python producer ──► Kafka topic "web-events" ──┬──► HDFS writer ──► HDFS JSON events
+                                 (3 partitions)          │
+                                                         └──► Spark (every 5 s) ──► HDFS Parquet + MySQL weblogs_parallel (speed tables)
+                                                                                         │
+ MySQL weblogs_parallel (status_codes) ── Sqoop import ──► HDFS reference                                   ▼
+                                                                          dashboard "Real-time" page
+ HDFS raw lines + reference ──► Hive ──► result tables ──► Sqoop export ──► MySQL weblogs_parallel ──► dashboard
+                                   └──► speed check: Spark's daily totals = Hive's, or the run fails
 ```
+
+All three MySQL mentions are the same database, `weblogs_parallel`.
 
 ### 3.1 HDFS: the warehouse
 
@@ -97,7 +104,7 @@ NASA .gz files
 
 Our cluster has a single DataNode, so the replication factor is **1**. A second copy on the same disk would protect against nothing. On a real cluster you would keep 3.
 
-Our raw logs live under `/data/weblogs/`, one folder per day, for example `/data/weblogs/dt=1995-07-01/`. You can browse HDFS at http://localhost:9870.
+Our raw logs live under `/data/nasa/raw/flume/`, one folder per day, for example `/data/nasa/raw/flume/dt=1995-07-01/`. You can browse HDFS at http://localhost:9870.
 
 ### 3.2 YARN and MapReduce: the workers and the method
 
@@ -119,14 +126,14 @@ Because map works on each block separately, a thousand machines can map a thousa
 
 | Concept | Meaning | In our project |
 |---------|---------|----------------|
-| Topic | A named stream of messages, like a TV channel | `web-logs` |
+| Topic | A named stream of messages, like a TV channel | `web-events` |
 | Partition | A topic is split into ordered pieces so several readers can work in parallel | 3 partitions |
 | Offset | The position number of a message inside a partition, like a page number | Each log line gets one |
-| Consumer group | A team of readers sharing the work; Kafka remembers how far the team got | `flume-hdfs-writer` (Flume agent 2) |
-| Lag | How many messages are waiting, not yet read by the group | Grows when agent 2 is stopped, shrinks when it catches up |
+| Consumer group | A team of readers sharing the work; Kafka remembers how far the team got | `kafka-hdfs-writer` (the HDFS writer); Spark keeps its own position in its checkpoint |
+| Lag | How many messages are waiting, not yet read by the group | Grows when the HDFS writer is stopped, shrinks when it catches up |
 | Broker | A Kafka server | One broker |
 
-Messages are not deleted when read. They stay on disk for a retention period, and each consumer group keeps its own bookmark (the committed offset). That is why a reader can stop, restart and continue exactly where it left off.
+Messages are not deleted when read. They stay on disk for a retention period, and each consumer group keeps its own bookmark (the committed offset). That is why a reader can stop, restart and continue exactly where it left off. It is also why **two** independent readers can use the same topic: the HDFS writer and Spark each have their own bookmark and never disturb each other. This is the reason Kafka is in the project: before Spark, it only made a second copy of the same lines that nobody used.
 
 **ZooKeeper** is Kafka's coordinator in our version (Confluent Platform 7.6.1). It keeps track of which brokers are alive and holds cluster metadata. Think of it as the building manager who knows which rooms exist and who is inside. Newer Kafka versions can run without it, but ours uses it.
 
@@ -145,21 +152,32 @@ Messages are not deleted when read. They stay on disk for a retention period, an
 
 An **event** is one log line (the body) plus a few key-value **headers**. **Interceptors** are small filters that can read or change an event as it enters the agent, for example to add a header.
 
-We run two agents:
+We run one agent:
 
 | Agent | Source | Channel | Sink |
 |-------|--------|---------|------|
-| agent 1 | **TAILDIR**: follows `/data/live/sequential/access.log` like `tail -f`, and remembers its position in a JSON file | file channel | **Kafka sink**: publishes to topic `web-logs`, waits for `acks=all` |
-| agent 2 | **Kafka source**: reads `web-logs` as group `flume-hdfs-writer` | file channel | **HDFS sink**: writes to `/data/weblogs/dt=%Y-%m-%d` |
+| direct | **TAILDIR**: follows `/data/live/parallel/access.log` like `tail -f`, and remembers its position in a JSON file | file channel | **HDFS sink**: writes to `/data/nasa/raw/flume/dt=%Y-%m-%d` |
 
 Two interceptors matter:
 
-- On agent 1, a **regex_extractor** interceptor reads the date inside the line (`01/Jul/1995:00:00:01`) and stores it as the `timestamp` header, in milliseconds.
-- On agent 2, a **timestamp** interceptor with `preserveExisting = true` adds the current time only to events that have no timestamp yet. Those are the lines agent 1 could not parse.
+- A **regex_extractor** interceptor reads the date inside the line (`01/Jul/1995:00:00:01`) and stores it as the `timestamp` header, in milliseconds.
+- A **static** interceptor first sets the `timestamp` to 0, so a line without any date still has one. Such a line lands in the folder `dt=1970-01-01` instead of being dropped.
 
-Files being written in HDFS start with `_`, so Hive never reads a half-written file. A file is closed every 5 minutes, at 128 MB, or after 60 seconds of inactivity.
+Files being written in HDFS start with `_`, so Hive never reads a half-written file. A file is closed every 30 seconds, at 128 MB, or after 10 seconds of inactivity.
 
-### 3.5 Hive: SQL on top of files
+### 3.5 Spark: the live scoreboard
+
+**Spark** is a general engine for processing data in parallel. **Spark Structured Streaming** applies it to a stream: it treats the stream as a table that never stops growing and, every few seconds, processes the new rows as a small batch (a **micro-batch**). We use it as the **speed layer**.
+
+- **Input:** Kafka topic `web-events`, as a second consumer next to the HDFS writer.
+- **Every 5 seconds:** it parses the JSON events and computes, per minute, the hits, the 4xx errors, the 404s, the 5xx errors and the bytes, and the requests per host per minute.
+- **Output:** the figures go to HDFS as **Parquet** files (a compact column format), one folder per micro-batch (`batch_id=N`), and to MySQL tables (`speed_minute`, `speed_host_minute`, `speed_alerts`, `speed_batches`) that the dashboard's *Real-time* page reads. Hive can query the Parquet files too (`speed_traffic_minute`, `speed_alerts`).
+- **Alerts:** `traffic_spike` at 300 hits in a minute, `not_found_burst` at 15 404s, `server_errors` at 3 5xx, and `host_flood` when one host sends 30 requests in a minute. The thresholds sit above the 99.9th percentile of a normal NASA minute (217 hits, 13 not-found, 16 requests from one host), so an alert means something unusual, not just a busy minute.
+- **Checkpoint:** Spark writes its read position (the Kafka offsets of the last micro-batch) into a checkpoint folder in HDFS, `/data/nasa/checkpoints/spark-speed-layer`. After a crash it continues from there. `make reset` keeps this folder, so Spark never re-reads old runs. On its very first start, with no checkpoint, it begins at the end of the topic.
+- **Exactly once:** after a crash Spark may replay the last micro-batch with the same number. Its HDFS folder is simply overwritten with the same content, and MySQL skips a `batch_id` that is already in `speed_batches` (that row is written in the same transaction as the totals). So a minute is never counted twice.
+- **Cost:** Spark runs in local mode in its own container, limited to 2 GB, and adds roughly 1 to 2 GB of memory to the project.
+
+### 3.6 Hive: SQL on top of files
 
 **Hive** lets you write SQL against files in HDFS. It translates each query into MapReduce jobs.
 
@@ -172,20 +190,20 @@ Files being written in HDFS start with `_`, so Hive never reads a half-written f
 
 The analysis writes six result tables: `top_pages`, `hits_per_hour`, `hits_per_day`, `status_distribution`, `top_hosts` and `data_quality`.
 
-### 3.6 Sqoop: the delivery truck
+### 3.7 Sqoop: the delivery truck
 
 **Sqoop** copies data between a relational database and HDFS, in both directions. Each transfer runs as a MapReduce job (we use one mapper, `-m 1`, because the tables are small).
 
-- **Import** (MySQL → HDFS): the small `status_codes` table ("404 = Not Found, Client Error") goes to `/data/reference/status_codes`, so Hive can join it with the logs.
+- **Import** (MySQL → HDFS): the small `status_codes` table ("404 = Not Found, Client Error") goes to `/data/nasa/reference/sqoop/status_codes`, so Hive can join it with the logs. The import is checked in a staging folder before it replaces the published copy.
 - **Export** (HDFS → MySQL): each result table is emptied in MySQL (`TRUNCATE`), then reloaded from its HDFS folder.
 
-### 3.7 MySQL: the reporting desk
+### 3.8 MySQL: the reporting desk
 
-**MySQL** 8.0 plays three roles: it stores the reference table `status_codes`, the final results (database `weblogs`), and Hive's metastore. MySQL is what a business analyst or a website would actually query: fast for small answers, unlike Hive.
+**MySQL** 8.0 plays several roles: it stores the reference table `status_codes`, the final results and the speed-layer tables (database `weblogs_parallel`), and Hive's metastore. MySQL is what a business analyst or a website would actually query: fast for small answers, unlike Hive.
 
-### 3.8 Docker: the shipping containers
+### 3.9 Docker: the shipping containers
 
-Installing Java, Hadoop, Hive, Kafka, ZooKeeper, Flume, Sqoop and MySQL by hand takes hours and breaks easily. Docker packages them.
+Installing Java, Hadoop, Hive, Kafka, ZooKeeper, Flume, Sqoop, Spark and MySQL by hand takes hours and breaks easily. Docker packages them.
 
 | Concept | Meaning | Analogy |
 |---------|---------|---------|
@@ -194,7 +212,7 @@ Installing Java, Hadoop, Hive, Kafka, ZooKeeper, Flume, Sqoop and MySQL by hand 
 | Volume | Storage that survives when a container is deleted | A fridge where you keep leftovers |
 | Docker Compose | One file (`docker-compose.yml`) describing every container, its ports, volumes and start order | The seating plan for a dinner party |
 
-**Our trick: one image, many roles.** Hadoop, Hive, Flume and Sqoop all need the same Hadoop libraries. Instead of four images, we built one image, `weblogs/bigdata`, with Hadoop 3.3.6, Hive 3.1.3, Flume 1.9.0 and Sqoop 1.4.7. The `entrypoint.sh` script reads the first argument (`hadoop`, `hive`, `flume`, `replayer` or `client`) and runs the matching script in `roles/`. Same toolbox, different job.
+**Our trick: one image, many roles.** Hadoop, Hive, Flume, Sqoop and Spark all need the same Hadoop libraries. Instead of five images, we built one image, `weblogs/bigdata`, with Hadoop 3.3.6, Hive 3.1.3, Flume 1.9.0, Sqoop 1.4.7 and Spark 3.5.9 (Spark is its own last layer, so adding it did not re-download the others). The `entrypoint.sh` script reads the first argument (`hadoop`, `hive`, `flume`, `replayer` or `client`) and runs the matching script in `roles/`; any other command, such as `spark-submit` for the speed layer, is run as it is. Same toolbox, different job.
 
 Our containers:
 
@@ -202,86 +220,80 @@ Our containers:
 |-----------|------|
 | `mysql` | Database (results, reference data, Hive metastore) |
 | `zookeeper`, `kafka` | Message queue and its coordinator |
-| `kafka-init` | Runs once to create topic `web-logs` with 3 partitions |
+| `kafka-init` | Runs once to create topic `web-events` with 3 partitions |
 | `hadoop` | HDFS (NameNode + DataNode) and YARN (ResourceManager + NodeManager) and job history |
 | `hive` | Metastore service and HiveServer2 |
-| `flume-agent1`, `flume-agent2` | The two postmen |
-| `replayer` | Simulates live traffic (started only by `make replay`) |
+| `flume-direct` | The Flume agent: log file to HDFS |
+| `kafka-producer`, `kafka-hdfs-writer` | The Kafka branch: JSON events into the topic, and out of it into HDFS |
+| `spark-streaming` | The speed layer: Spark, second reader of the topic (2 GB limit) |
+| `replayer` | Simulates live traffic (started only by `make replay`, with the producer) |
 | `client` | Toolbox for running Hive scripts, Sqoop and checks |
 
-### 3.9 The web dashboard
+### 3.10 The web dashboard
 
-The `dashboard/` folder holds a Next.js web application, served at http://localhost:3030. It is the shop window of the project. It reads the final results from MySQL, and shows the live state of the pipeline: Kafka (topic and consumer lag), HDFS (day partitions), YARN (jobs) and the Flume agents' metrics (each agent exposes counters over HTTP, port 34545 by default, such as events received and delivered).
+The `dashboard/` folder holds a Next.js web application, served at http://localhost:3030. It is the shop window of the project. It reads the final results from MySQL, and shows the live state of the pipeline: Kafka (topic and consumer lag), Spark (micro-batches processed, from the MySQL speed tables), HDFS (day partitions), YARN (jobs) and the Flume agent's metrics (the agent exposes counters over HTTP, port 34545 by default, such as events received and delivered). Its pages are Overview, Analytics ("Six questions, two layers": the four batch questions and data quality, then **Suspicious activity** and **Do both layers agree?**), **Real-time** (the speed layer: key figures, traffic per minute, alerts, and a table of the speed layer against the batch layer), Live pipeline and Data explorer.
 
-It can also **run the pipeline**. The buttons on the *Live pipeline* page do not run anything inside the dashboard itself: they ask a small **control API** (`scripts/control_server.py`) to do it. That API runs in the `client` container, which already has Hadoop, Hive and Sqoop installed, and it runs exactly the scripts the `make` targets run. It locks resources per architecture, allowing independent branches to overlap while refusing conflicting work, keeps the output of each job so the page can show it line by line, and can stop a job. It listens only on the private Docker network; the dashboard is the only thing that talks to it, and the dashboard only accepts these requests from its own pages.
+It can also **run the pipeline**. The buttons on the *Live pipeline* page do not run anything inside the dashboard itself: they ask a small **control API** (`scripts/control_server.py`) to do it. That API runs in the `client` container, which already has Hadoop, Hive and Sqoop installed, and it runs exactly the scripts the `make` targets run. It locks resources, allowing independent branches to overlap while refusing conflicting work, keeps the output of each job so the page can show it line by line, and can stop a job. It listens only on the private Docker network; the dashboard is the only thing that talks to it, and the dashboard only accepts these requests from its own pages.
 
 Think of it as a remote control: the dashboard is the remote, the client container is the machine, and the buttons press the same keys you would press in a terminal.
 
 ---
 
-### 3.10 Two architectures: the parallel approach
+### 3.11 Three ingestion branches and the two layers
 
-The two-agent explanation above is **A · Sequential**. **B · Parallel**, selected by default, asks what changes when ingestion has three independent counters at the same post office:
+The three branches start together and each ends in HDFS. Think of three counters at the same post office:
 
-1. **Original letters:** `flume-direct` tails `/data/live/parallel/access.log` and writes unchanged lines to `/data/nasa/raw/flume`.
-2. **Structured copies:** `scripts/events.py` converts each source line into JSON. `kafka_ingestion.py produce` publishes to `web-events` with idempotence and `acks=all`, saving its checkpoint only after acknowledgements. `consume` uploads closed HDFS files to `/data/nasa/streaming/kafka`, publishes them by rename, then commits offsets synchronously.
+1. **Original letters:** `flume-direct` tails `/data/live/parallel/access.log` and writes unchanged lines to `/data/nasa/raw/flume`. This is the input of the batch layer.
+2. **Structured copies:** `scripts/events.py` converts each source line into JSON. `kafka_ingestion.py produce` publishes to `web-events` with idempotence and `acks=all`, saving its checkpoint only after acknowledgements. `consume` uploads closed HDFS files to `/data/nasa/streaming/kafka`, publishes them by rename, then commits offsets synchronously. Spark reads the same topic for the speed layer.
 3. **Address book:** Sqoop imports MySQL `status_codes` independently. It writes to staging, verifies its contents and swaps it into `/data/nasa/reference/sqoop/status_codes`, keeping a failed import from replacing a valid copy.
 
 Each event ID identifies its source file and original line number. Two identical request lines at different positions remain different events; replaying the same position yields the same ID. A crash after HDFS publication but before a Kafka commit can produce duplicates. This is **at-least-once delivery**; `hive/03_kafka_events.sql` exposes `kafka_events_unique` to deduplicate logical events by ID. Raw physical rows remain available for inspection.
 
-B's raw Flume branch is the canonical source for the same six analytical tables. `make verify-ingestion` checks raw content as a multiset, every acknowledged Kafka source ID and zero consumer lag, and the exact Sqoop reference rows. Matching counts alone would not detect missing and substituted records.
+The raw Flume branch is the source of the six analytical tables. `make verify-ingestion` checks raw content as a multiset, every acknowledged Kafka source ID and zero consumer lag, that Spark has processed the topic to its end, and the exact Sqoop reference rows. Matching counts alone would not detect missing and substituted records.
 
-File locks prevent concurrent replayers or producers from sharing a checkpoint. The control API locks architecture resources, permits independent B branches to overlap, and reserves both architectures during Compare. `config/architectures.json` is the single source for paths, databases, topics and consumer groups. `ARCH=sequential|parallel` selects terminal commands; the dashboard uses its top-bar switch and `arch` cookie.
+**Speed layer against batch layer.** At the end of `make hive-analysis`, `hive/05_speed_check.sql` compares, day by day, Spark's totals (hits, 4xx, 5xx, computed from Kafka) with Hive's `hits_per_day` (computed from Flume's raw lines). If one day differs or exists in only one layer, an assertion fails and so does the whole pipeline. The two numbers come from two different copies of the data through two different engines: when they agree, we have strong evidence that nothing was lost or doubled on either path.
 
-### 3.11 Comparing and inspecting the website
+File locks prevent concurrent replayers or producers from sharing a checkpoint. The control API locks resources and permits independent branches to overlap. `config/architectures.json` is the single source for paths, databases, the topic, the consumer group and the Spark checkpoint.
 
-**04 Compare** starts the same ordered job as `make compare RATE=5000 LIMIT=0`: optional reset, A ingestion and batch, then B ingestion and batch, then six result-table fingerprints. Runs persist in the `runs` volume, including samples, timings, file sizes, row counts and sorted-row SHA-256 hashes. Compare delivery time separately from closure time: A closes idle files after 60 seconds and rolls at 300 seconds; B's direct Flume sink uses 10 and 30 seconds.
+### 3.12 Inspecting the website
 
-**05 Data explorer** browses the selected architecture's HDFS zones. Overview and Analytics read its MySQL database; Live pipeline draws one chain for A and three branches for B. API requests include architecture selection, so viewing B does not overwrite A's configuration.
+**Data explorer** browses the HDFS zones. Overview and Analytics read the MySQL database; Real-time reads its speed tables; Live pipeline draws the three branches and Kafka's two consumers.
 
-| Added source | Responsibility |
+| Source | Responsibility |
 |---|---|
-| `scripts/architectures.py`, `config/architectures.json` | Shared architecture settings |
+| `scripts/architectures.py`, `config/architectures.json` | Shared settings: folders, topic, databases |
 | `scripts/parallel_ingestion.py` | Independent Flume, Kafka and Sqoop orchestration |
 | `scripts/events.py`, `scripts/kafka_ingestion.py` | Stable structured events, producer and durable writer |
-| `scripts/runs.py`, `scripts/control_client.py` | Measurements, fingerprints and terminal job following |
+| `scripts/spark_speed_layer.py` | The Spark speed layer |
+| `hive/04_speed_layer.sql`, `hive/05_speed_check.sql` | Speed tables and views; the speed-versus-batch check |
+| `mysql/schema/speed_layer.sql` | MySQL serving tables of the speed layer |
 | `scripts/verify_ingestion.py`, `scripts/verify_analytics.py` | Source reconciliation and named full-dataset baseline |
-| `dashboard/app/compare/`, `dashboard/app/explorer/` | Comparison and HDFS browsing pages |
+| `dashboard/app/realtime/`, `dashboard/app/explorer/` | Real-time page and HDFS browsing page |
 | `docker-compose.docs.yml`, `docs/build/Dockerfile` | Containerised screenshot/PDF tools |
 
-The verified full run is recorded in [the comparison evidence](evidence/full-comparison.json):
-
-| Measurement | A · Sequential | B · Parallel |
-|---|---:|---:|
-| Source/HDFS lines | 3,461,613 | 3,461,613 |
-| Every line written (s) | 702.4 | 703.6 |
-| Every raw file closed (s) | 761.3 | 711.2 |
-| Batch part (s) | 898.5 | 958.3 |
-| Peak observed Kafka lag | 28,500 | 162,238 |
-| Raw HDFS files | 59 | 59 |
-| Result tables | All six identical | All six identical |
-
-B also persists structured JSON events and validates its branches. The shorter B closure time follows its sink timers; delivery throughput is almost equal on this machine.
+The verified full run ([record `a0c1eb6ebd18`](evidence/parallel-full-run.json)) measured 3,461,613 source lines and 3,461,613 lines in HDFS, 59 raw HDFS files, and all six result tables matching their baseline; the two log branches took about 694 seconds at 5,000 lines per second, and the batch part about 16 minutes.
 
 ### Known limits
 
-This is a single DataNode and Kafka broker, with replication 1; it demonstrates restart recovery, not machine-failure redundancy. Malformed lines remain in the raw data. B's Flume agent files undated lines under `dt=1970-01-01`; A uses the ingestion date as its fallback, and structured Kafka events use `dt=unknown`. The analytical regex identifies malformed rows independently of those storage folders. Physical delivery is at least once. A Flume write timeout can duplicate an original raw batch as well; counts and content reconciliation must pass before analysis, and a failed raw check requires a fresh replay. Kafka retains messages from earlier runs, and tool counters can be cumulative. Comparison measurements use per-run deltas; source reconciliation checks the current dataset. Different sink rollover settings affect latency and small-file counts, so a single laptop timing does not prove one design universally faster.
+This is a single DataNode and Kafka broker, with replication 1, and Spark in local mode; it demonstrates restart recovery, not machine-failure redundancy. Malformed lines remain in the raw data. The Flume agent files undated lines under `dt=1970-01-01`, and structured Kafka events use `dt=unknown`. The analytical regex identifies malformed rows independently of those storage folders. Physical delivery to HDFS is at least once. A Flume write timeout can duplicate an original raw batch as well; counts and content reconciliation must pass before analysis, and a failed raw check requires a fresh replay. Kafka retains messages from earlier runs, and tool counters can be cumulative. The speed layer's results are exactly once, but they are only as complete as what Spark has read: the speed check is meaningful once the topic has been processed to its end.
 
-## 4. Follow one line (A · Sequential)
+## 4. Follow one line
 
 Let us follow our example line, `199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] "GET /history/apollo/ HTTP/1.0" 200 6245`, from start to finish.
 
 1. **In the archive.** It sits inside `data/raw/NASA_access_log_Jul95.gz`, a compressed file downloaded by `make data`.
-2. **Replayed.** `scripts/replay.py` reads the `.gz` files in calendar order (July before August) and appends lines to `/data/live/sequential/access.log` at `REPLAY_RATE` lines per second (500 by default). After each batch it saves its position in a state file, so a restart continues at exactly the next line.
-3. **Picked up by Flume agent 1.** The TAILDIR source notices the new line in `access.log` and turns it into an event.
+2. **Replayed.** `scripts/replay.py` reads the `.gz` files in calendar order (July before August) and appends lines to `/data/live/parallel/access.log` at `REPLAY_RATE` lines per second (500 by default). After each batch it saves its position in a state file, so a restart continues at exactly the next line.
+3. **Picked up by Flume.** The TAILDIR source notices the new line in `access.log` and turns it into an event.
 4. **Timestamped.** The `regex_extractor` interceptor finds `01/Jul/1995:00:00:01` in the line and adds the header `timestamp = <that moment in milliseconds>`. The event goes into the file channel on disk.
-5. **Into Kafka.** The Kafka sink publishes the event to topic `web-logs`. With `useFlumeEventFormat = true`, the headers travel with the body, so the timestamp is not lost. With `acks = all`, the sink only considers the message sent once Kafka confirms it is stored. The line lands in one of the 3 partitions and gets an offset.
-6. **Read by Flume agent 2.** The Kafka source, in consumer group `flume-hdfs-writer`, reads the event and unpacks the headers. The fallback interceptor sees a timestamp already there and leaves it alone. The event goes into agent 2's file channel. The offset is committed so Kafka knows this line is done.
-7. **Written to HDFS.** The HDFS sink reads the timestamp header, fills `dt=%Y-%m-%d` with `1995-07-01`, and appends the line to a file in `/data/weblogs/dt=1995-07-01/`. The file is named `_weblogs...` while open, then renamed `weblogs...` when closed.
-8. **Seen by Hive.** `MSCK REPAIR TABLE` registers the partition `dt=1995-07-01`. RegexSerDe splits the line into seven columns; the view `access_logs` turns it into `host = 199.72.81.55`, `hour_of_day = 0`, `method = GET`, `path = /history/apollo/`, `status = 200`, `bytes = 6245`.
-9. **Counted.** The queries in `hive/02_analysis.sql` count it once in `hits_per_hour` (hour 0), once for status 200 in `status_distribution` (labelled "OK" thanks to the imported `status_codes`), once for its host, and once for 1 July in `hits_per_day`. Results are written to `/data/results/...` in HDFS.
-10. **Exported.** `sqoop/export_results.sh` empties each MySQL result table and reloads it from HDFS.
-11. **Shown.** The dashboard queries MySQL and draws the charts. Our line is now one tiny part of the bar for midnight.
+5. **Written to HDFS.** The HDFS sink reads the timestamp header, fills `dt=%Y-%m-%d` with `1995-07-01`, and appends the line to a file in `/data/nasa/raw/flume/dt=1995-07-01/`. The file is named with a leading `_` while open, then renamed when closed.
+6. **Turned into an event.** In parallel, the Python producer reads the same source line, builds a JSON event (stable `event_id`, host, resource, status 200, bytes 6245, event time with its UTC offset) and publishes it to topic `web-events`. With `acks = all`, it only considers the message sent once Kafka confirms it is stored. The event lands in one of the 3 partitions and gets an offset.
+7. **Archived.** The HDFS writer reads batches of events, writes a JSON file in HDFS under `/data/nasa/streaming/kafka`, publishes it, and only then commits the offset.
+8. **Counted live.** Spark reads the event in its next 5-second micro-batch and adds it to the totals of the minute `1995-07-01 00:00` (one hit, status 200, 6,245 bytes) and to the count of its host in that minute. It writes the batch to HDFS (`batch_id=N`) and to MySQL, where the Real-time page shows it.
+9. **Seen by Hive.** `MSCK REPAIR TABLE` registers the partition `dt=1995-07-01`. RegexSerDe splits the line into seven columns; the view `access_logs` turns it into `host = 199.72.81.55`, `hour_of_day = 0`, `method = GET`, `path = /history/apollo/`, `status = 200`, `bytes = 6245`.
+10. **Counted.** The queries in `hive/02_analysis.sql` count it once in `hits_per_hour` (hour 0), once for status 200 in `status_distribution` (labelled "OK" thanks to the imported `status_codes`), once for its host, and once for 1 July in `hits_per_day`. Results are written to `/data/nasa/results/...` in HDFS.
+11. **Cross-checked.** `hive/05_speed_check.sql` compares the total for 1 July in `hits_per_day` with the total Spark computed from Kafka. They must be equal.
+12. **Exported.** `sqoop/export_results.sh` empties each MySQL result table and reloads it from HDFS.
+13. **Shown.** The dashboard queries MySQL and draws the charts. Our line is now one tiny part of the bar for midnight.
 
 ---
 
@@ -289,7 +301,7 @@ Let us follow our example line, `199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] "
 
 ### Partition by event date, not ingestion date
 
-If agent 2 used the current time, all 1995 data replayed today would land in one folder named after today, and "traffic on 1 July 1995" would be meaningless. By carrying the real request time from agent 1 to agent 2 in a header, each line goes to the folder of the day it actually happened. It is like filing a letter by the date written on it, not by the day it arrived in the mailroom.
+If Flume used the current time, all 1995 data replayed today would land in one folder named after today, and "traffic on 1 July 1995" would be meaningless. By reading the real request time from the line into a header, each line goes to the folder of the day it actually happened. It is like filing a letter by the date written on it, not by the day it arrived in the mailroom. The Kafka branch does the same with the `dt` field of its events.
 
 ### No data loss
 
@@ -297,27 +309,32 @@ Every stage is designed to survive a stop:
 
 | Risk | Protection |
 |------|------------|
-| Flume agent crashes with events in its buffer | File channels keep the buffer on disk |
+| Flume agent crashes with events in its buffer | The file channel keeps the buffer on disk |
 | Kafka loses a message it said it had | Producer waits for `acks = all` |
-| Agent 2 is stopped | Messages wait in Kafka; on restart it resumes from its committed offset |
-| Agent 1 restarts | TAILDIR position file remembers where it stopped in `access.log` |
+| The HDFS writer is stopped | Messages wait in Kafka; on restart it resumes from its committed offset |
+| Spark is stopped or crashes | It resumes from its checkpoint; a replayed micro-batch is absorbed by its `batch_id` |
+| Flume restarts | TAILDIR position file remembers where it stopped in `access.log` |
 | Replayer restarts | State file holds its offset, so no line is skipped or duplicated |
 
-And we do not just trust it: `make counts` (`scripts/check-counts.sh`) compares the number of lines replayed with the number of lines in HDFS.
+And we do not just trust it: `make counts` (`scripts/check-counts.sh`) compares the number of lines replayed with the number of lines in HDFS, `make verify-ingestion` checks every branch against its source, and the speed check compares two independent paths.
 
 ### Malformed lines are kept and counted
 
-Most malformed lines still contain a valid date (for example a request with a broken quote), so agent 1 timestamps them and they land in the right day folder. A line without any date gets no timestamp from agent 1; instead of dropping it, agent 2's fallback interceptor gives it the current time, so it lands in today's partition. In the full dataset this happens to exactly one line, `alyssa.p`: the last line of the July file, cut off and without a final newline. In Hive the regex does not match any malformed line, the row is all NULLs, the view skips it, and the `data_quality` table counts it. Bad data is measured, not hidden.
+Most malformed lines still contain a valid date (for example a request with a broken quote), so Flume timestamps them and they land in the right day folder. A line without any date gets no real timestamp; instead of dropping it, Flume keeps the default timestamp 0, so it lands in the folder `dt=1970-01-01`. In the full dataset this happens to exactly one line, `alyssa.p`: the last line of the July file, cut off and without a final newline. In Hive the regex does not match any malformed line, the row is all NULLs, the view skips it, and the `data_quality` table counts it. Bad data is measured, not hidden.
 
 ### Decoupled containers
 
-Each service runs in its own container. One can be stopped, restarted or upgraded without touching the others, and Kafka in the middle means the collector and the writer never have to run at the same speed.
+Each service runs in its own container. One can be stopped, restarted or upgraded without touching the others, and Kafka in the middle means the producer, the HDFS writer and Spark never have to run at the same speed.
+
+### Two layers, one check
+
+The batch layer (Flume, Hive) is exact but late; the speed layer (Kafka, Spark) is early. Rather than trusting either, the pipeline compares them for every day and stops if they differ. A bug on one path, such as a lost batch or a double count, would show up as a difference.
 
 ### Single node as a deliberate limit
 
-HDFS and YARN run "pseudo-distributed": all daemons in one container. The configuration is that of a real cluster; only the replication factor (1) and the number of nodes differ. This keeps the project runnable on a laptop with 8 GB for Docker.
+HDFS and YARN run "pseudo-distributed": all daemons in one container. The configuration is that of a real cluster; only the replication factor (1) and the number of nodes differ. Spark runs in local mode for the same reason. This keeps the project runnable on a laptop with 8 GB for Docker.
 
-### One image for Hadoop, Hive, Flume and Sqoop
+### One image for Hadoop, Hive, Flume, Sqoop and Spark
 
 One build, one set of library versions, no compatibility drift between tools that share Hadoop's jars, and a faster setup.
 
@@ -332,7 +349,7 @@ One build, one set of library versions, no compatibility drift between tools tha
 | `docker-compose.yml` | All containers, volumes, ports and start order |
 | `.env.example` | Settings you can copy to `.env`: replay rate and limit, ports |
 | `.shellcheckrc` | Settings for the shell-script linter |
-| `docker/bigdata/Dockerfile` | Recipe for the shared image (Java, Hadoop, Hive, Flume, Sqoop, compatibility fixes) |
+| `docker/bigdata/Dockerfile` | Recipe for the shared image (Java, Hadoop, Hive, Flume, Sqoop, Spark, compatibility fixes) |
 | `docker/bigdata/fetch-apache.sh` | Downloads Apache releases from fast mirrors, verifies checksums, resumes and detects stalls |
 | `docker/bigdata/entrypoint.sh` | Chooses the container's role from its first argument |
 | `docker/bigdata/roles/hadoop.sh` | Formats HDFS once, starts NameNode, DataNode, YARN and job history |
@@ -342,16 +359,23 @@ One build, one set of library versions, no compatibility drift between tools tha
 | `docker/bigdata/roles/client.sh` | Keeps the toolbox container alive for commands |
 | `config/hadoop/*.xml` | `core-site`, `hdfs-site` (replication 1), `yarn-site` (memory, disk thresholds), `mapred-site` |
 | `config/hive/hive-site.xml` | Metastore in MySQL, MapReduce as execution engine |
-| `config/flume/agent1-log-to-kafka.conf` | Agent 1: TAILDIR → file channel → Kafka |
-| `config/flume/agent2-kafka-to-hdfs.conf` | Agent 2: Kafka → file channel → HDFS |
+| `config/flume/direct-to-hdfs.conf` | The Flume agent: TAILDIR → file channel → HDFS |
+| `config/architectures.json` | Folders, topic, consumer group, Spark checkpoint and databases |
 | `mysql/init/01_databases_users.sql` | Creates databases and the `hive` and `sqoop` users |
-| `mysql/init/02_weblogs_schema.sql` | Creates `status_codes` (with data) and the empty result tables |
+| `mysql/schema/weblogs.sql` | Creates `status_codes` (with data) and the empty result tables |
+| `mysql/schema/speed_layer.sql` | Creates the speed-layer serving tables (`speed_minute`, `speed_host_minute`, `speed_alerts`, `speed_batches`) |
 | `hive/01_create_tables.sql` | Hive database, raw table, view, reference and result tables |
 | `hive/02_analysis.sql` | Partition repair and the analytical queries |
+| `hive/03_kafka_events.sql` | Tables and views over the JSON events, with deduplication |
+| `hive/04_speed_layer.sql` | Parquet tables written by Spark, speed views and alert view |
+| `hive/05_speed_check.sql` | Fails the pipeline unless Spark's daily totals equal Hive's |
 | `sqoop/import_status_codes.sh` | MySQL `status_codes` → HDFS |
 | `sqoop/export_results.sh` | Hive results in HDFS → MySQL, with explicit columns |
 | `scripts/get-data.sh` | Downloads the two NASA `.gz` files into `data/raw` |
 | `scripts/replay.py` | Replays log lines at a controlled, resumable rate |
+| `scripts/events.py`, `scripts/kafka_ingestion.py` | JSON events with stable IDs; Kafka producer and HDFS writer |
+| `scripts/spark_speed_layer.py` | The Spark Structured Streaming speed layer |
+| `scripts/verify_ingestion.py` | Reconciles every branch with its source, Spark progress included |
 | `scripts/check-counts.sh` | Proves no loss: lines replayed vs. lines in HDFS |
 | `scripts/run-hive.sh` | Runs a Hive SQL file through Beeline |
 | `scripts/control_server.py` | Control API in the client container: runs pipeline steps for the dashboard, one at a time, and keeps their output |
@@ -361,7 +385,7 @@ One build, one set of library versions, no compatibility drift between tools tha
 | `docs/PROJECT_EXPLAINED.md` | This document |
 | `docs/GETTING_STARTED.md` | Step-by-step run guide with expected output and a demo script |
 | `docs/report.pdf`, `docs/slides.pdf` | Project report and presentation, generated from the real results |
-| `docs/build/` | Generator of the report and slides: screenshots (`capture.ts`) and PDF rendering (`render.ts`) |
+| `docs/build/` | Generator of the report, slides and guides: screenshots (`capture.ts`) and PDF rendering (`render.ts`) |
 | `docs/meta.json` | Names, course and date printed on the report and slides |
 
 ---
@@ -439,7 +463,9 @@ The top host is `piweba3y.prodigy.com` with **21,987 requests**. Prodigy was a 1
 | acks=all | Kafka producer setting: a message counts as sent only once the broker has stored it |
 | Agent (Flume) | One running Flume process: source, channel, sink |
 | Batch | Processing a large amount of stored data in one go |
+| Batch layer | The exact, late path: Flume, HDFS, Hive |
 | Block | A piece of an HDFS file, 128 MB by default |
+| Checkpoint (Spark) | Folder where Spark saves its read position, so it can continue after a crash |
 | Broker | A Kafka server |
 | Channel | Flume's buffer between source and sink; ours are file channels on disk |
 | Common Log Format | The standard layout of a web access log line |
@@ -448,19 +474,23 @@ The top host is `piweba3y.prodigy.com` with **21,987 requests**. Prodigy was a 1
 | DataNode | HDFS server holding the actual blocks |
 | Docker Compose | Tool that starts several containers from one YAML file |
 | Event | Flume's unit of data: a body (the line) plus headers |
+| Exactly once | Each input counted once in the result, even after a crash and replay |
 | External table | Hive table that points at files it does not own |
 | HDFS | Hadoop Distributed File System |
 | Hive | SQL engine over files in HDFS |
 | Image (Docker) | A frozen template from which containers start |
 | Interceptor | Flume plug-in that inspects or modifies events, for example to add a header |
 | Lag | Messages in Kafka not yet read by a consumer group |
+| Lambda architecture | A batch layer for exact results plus a speed layer for fast ones, reconciled |
 | MapReduce | Parallel processing in map, shuffle and reduce steps |
+| Micro-batch | A small group of new messages that Spark processes together, every 5 seconds here |
 | Metastore | Hive's catalogue of tables, columns and locations, stored in MySQL |
 | MSCK REPAIR TABLE | Hive command that registers partition folders created by others |
 | NameNode | HDFS server holding the file catalogue (which blocks, where) |
 | NodeManager | YARN worker on each machine that runs tasks |
 | Offset | Position of a message in a Kafka partition |
 | Partition (Hive) | Sub-folder of a table, here one per day (`dt=YYYY-MM-DD`) |
+| Parquet | Compact column-oriented file format, used for Spark's output |
 | Partition (Kafka) | Ordered slice of a topic; ours has 3 |
 | Proxy | A server that makes requests on behalf of many users |
 | RegexSerDe | Hive SerDe that splits text into columns with a regular expression |
@@ -469,6 +499,8 @@ The top host is `piweba3y.prodigy.com` with **21,987 requests**. Prodigy was a 1
 | SerDe | Serializer/Deserializer: converts between file text and table columns |
 | Sink | Where a Flume agent delivers events |
 | Source | Where a Flume agent receives events |
+| Spark Structured Streaming | Spark's engine for continuous processing of a stream, in micro-batches |
+| Speed layer | The fast path: Kafka, then Spark; figures within seconds |
 | Sqoop | Bulk transfer tool between relational databases and HDFS |
 | TAILDIR | Flume source that follows growing files and remembers its position |
 | Topic | A named Kafka stream |
@@ -481,14 +513,32 @@ The top host is `piweba3y.prodigy.com` with **21,987 requests**. Prodigy was a 1
 
 ## 10. Likely exam questions
 
-**Why put Kafka between two Flume agents?**
-To decouple collection from storage. If HDFS is slow or agent 2 is down, lines wait safely in Kafka. Kafka also absorbs traffic spikes, and other consumers (a real-time alert system, for example) could read the same topic without touching the pipeline.
+**Why is Kafka in the project?**
+It carries one structured event per log line to two independent readers: a writer that archives the events in HDFS, and Spark, the speed layer. It decouples the producer from its consumers, absorbs traffic spikes, and each reader keeps its own bookmark, so one can stop without disturbing the other. Before Spark, Kafka only made a second copy of the same lines that nobody used.
 
-**Why not write from Flume straight to HDFS?**
-It would work, but then any HDFS problem backs up directly into the collector, whose only buffer is its own channel. Kafka gives a large, durable, replayable buffer and lets several systems consume the same stream.
+**Why not write from Flume straight to HDFS only?**
+That is what the Flume branch does: it gives the exact raw history that Hive analyses. Kafka and Spark add something Flume to HDFS cannot: answers within seconds, while the run goes on.
 
-**What happens if agent 2 stops?**
-Agent 1 keeps publishing; messages accumulate in Kafka and the lag of group `flume-hdfs-writer` grows. When agent 2 restarts, it continues from its last committed offset. Nothing is lost or duplicated in the normal case.
+**Why Spark? Why not only Hive?**
+Hive is exact but runs after the data is stored, and each query costs minutes. Spark Structured Streaming reads the Kafka topic continuously and computes traffic per minute and alerts every 5 seconds. We keep both and check that they agree.
+
+**What is a Lambda architecture?**
+Two paths over the same data: a batch layer (here Flume, HDFS and Hive) that is exact but late, and a speed layer (Kafka and Spark) that is early. They are reconciled, here by an assertion that fails the pipeline when the daily totals differ.
+
+**How is the speed layer exactly once?**
+Every micro-batch writes its own `batch_id` folder in HDFS, overwritten if replayed, and MySQL skips a `batch_id` already in `speed_batches`, written in the same transaction as the totals. The read position is Spark's checkpoint. So a replay after a crash changes nothing. (The HDFS JSON archive of the Kafka writer is still at least once.)
+
+**How do you check that Spark's numbers are right?**
+`hive/05_speed_check.sql`, run at the end of `make hive-analysis`, compares for every day Spark's totals (from Kafka) with Hive's `hits_per_day` (from Flume's raw lines). Two different copies of the data, two different engines: the pipeline fails unless they agree.
+
+**Where do the alert thresholds come from?**
+From the data: 300 hits, 15 404s, 3 server errors and 30 requests from one host per minute are above the 99.9th percentile of a normal NASA minute (217 hits, 13 not-found, 16 requests from one host), so an alert marks a real anomaly.
+
+**What does Spark cost?**
+One more container and roughly 1 to 2 GB of memory, in local mode with a 2 GB limit.
+
+**What happens if the HDFS writer stops?**
+The producer keeps publishing; messages accumulate in Kafka and the lag of group `kafka-hdfs-writer` grows. When the writer restarts, it continues from its last committed offset. Spark has its own position and is not affected.
 
 **Why is Hive so slow on such small data?**
 Each query becomes one or more MapReduce jobs, and every job pays a fixed startup cost: container allocation, JVM start, disk writes, shuffle. On small data, that overhead dominates. Hive is built for throughput on huge data, not for fast answers.
@@ -503,10 +553,10 @@ Flume owns the files. An external table only describes them, so dropping or recr
 A query on one day reads one folder instead of all of them. The event date keeps 1995 data in 1995 folders even though it was ingested today.
 
 **How did you prove no line was lost?**
-`make counts` compares the number of lines replayed with the number stored in HDFS: 3,461,613 on both sides. Hive's `data_quality` table confirms the total and shows 33 malformed lines, still present.
+`make counts` compares the number of lines replayed with the number stored in HDFS: 3,461,613 on both sides. `make verify-ingestion` checks each branch against its source, and Hive's `data_quality` table confirms the total and shows 33 malformed lines, still present.
 
 **What happens to a malformed line?**
-It gets no event timestamp, so agent 2 gives it the current time and it lands in today's partition. Hive's regex does not match, it becomes a NULL row, and it is counted in `data_quality`.
+It gets no event timestamp, so Flume keeps the default timestamp 0 and it lands in `dt=1970-01-01`. Hive's regex does not match, it becomes a NULL row, and it is counted in `data_quality`.
 
 **What are the three parts of a Flume agent?**
 Source (receives), channel (buffers), sink (delivers). We use file channels so the buffer survives a crash.
@@ -524,7 +574,7 @@ It coordinates Kafka: it tracks the broker and stores cluster metadata.
 There is only one DataNode; extra copies on the same disk would add nothing. A real cluster uses 3.
 
 **What would you change for a real multi-node cluster?**
-Several DataNodes with replication 3, a standby NameNode for high availability, several Kafka brokers with topic replication 3, more partitions to parallelise consumers, a faster engine than MapReduce for Hive (Tez or Spark), monitoring and alerting on Kafka lag, and security (authentication, encryption) instead of local default passwords.
+Several DataNodes with replication 3, a standby NameNode for high availability, several Kafka brokers with topic replication 3, more partitions to parallelise consumers, Spark on a cluster instead of local mode, a faster engine than MapReduce for Hive (Tez or Spark), monitoring and alerting on Kafka lag, and security (authentication, encryption) instead of local default passwords.
 
 **Why are images the top "pages"?**
 Every HTML page loads the same logos, so each page view generates several image hits. Hits measure requests, not visits.

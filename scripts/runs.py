@@ -1,14 +1,12 @@
-"""Measurements behind the run records and the A/B comparison of the control API.
+"""Measurements behind the run records of the control API.
 
 Everything here reads the running stack without changing it:
   * progress counters: replay and producer checkpoints, Flume and writer sink counters;
   * Kafka consumer lag of an architecture's topic;
-  * HDFS folder summaries (WebHDFS) and files still being written;
-  * a fingerprint of every MySQL result table, to tell whether two runs agree.
+  * HDFS folder summaries (WebHDFS) and files still being written.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import subprocess
@@ -22,13 +20,10 @@ import architectures
 RUNS_DIR = Path(os.environ.get("RUNS_DIR", "/data/runs"))
 WEBHDFS = os.environ.get("HDFS_HTTP_URL", "http://hadoop:9870") + "/webhdfs/v1"
 BROKERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-RESULT_TABLES = ("top_pages", "hits_per_hour", "hits_per_day", "status_distribution",
-                 "top_hosts", "data_quality")
 
-# HDFS sinks of each architecture, read through the Flume HTTP metrics (the Kafka HDFS
-# writer answers in the same format).
+# HDFS sinks, read through the Flume HTTP metrics (the Kafka HDFS writer answers in the
+# same format).
 SINKS = {
-    "sequential": {"flume": "http://flume-agent2:34545/metrics"},
     "parallel": {"flume": "http://flume-direct:34545/metrics",
                  "kafka": "http://kafka-hdfs-writer:34545/metrics"},
 }
@@ -90,24 +85,6 @@ def kafka_lag(topic: str, group: str) -> int | None:
         return None
     finally:
         consumer.close()
-
-
-def result_fingerprints(database: str) -> dict:
-    """Row count and SHA-256 of the sorted rows of every result table."""
-    import pymysql
-
-    fingerprints = {}
-    with pymysql.connect(host=os.environ.get("MYSQL_HOST", "mysql"),
-                         user=os.environ.get("SQOOP_DB_USER", "sqoop"),
-                         password=os.environ.get("SQOOP_DB_PASSWORD", "sqoop"),
-                         database=database) as connection:
-        with connection.cursor() as cursor:
-            for table in RESULT_TABLES:
-                cursor.execute(f"SELECT * FROM {table}")
-                rows = sorted("\t".join(map(str, row)) for row in cursor.fetchall())
-                fingerprints[table] = {"rows": len(rows),
-                                       "sha256": hashlib.sha256("\n".join(rows).encode()).hexdigest()}
-    return fingerprints
 
 
 # ---- Ingestion of one architecture, from start to "everything closed in HDFS" ----------------
@@ -230,6 +207,3 @@ def strip_samples(record: dict) -> dict:
         (run.get("ingestion") or {}).pop("samples", None)
     return copy
 
-
-def results_match(left: dict, right: dict) -> dict:
-    return {table: left.get(table) == right.get(table) for table in RESULT_TABLES}

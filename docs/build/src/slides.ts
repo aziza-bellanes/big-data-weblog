@@ -1,10 +1,10 @@
 // Presentation deck (16:9) in the template style, built from the same data as the report.
 import { dailyChart, hourlyChart, statusDonut } from "./charts.ts";
-import { comparisonChart, comparisonTable } from "./comparison.ts";
 import type { Report } from "./data.ts";
 import { architectureSvg } from "./diagram.ts";
 import { esc, hour, int, pct } from "./format.ts";
 import { asset, bars, htmlDocument } from "./layout.ts";
+import { hasAsset } from "./pages.ts";
 
 let slideNo = 0;
 
@@ -30,7 +30,8 @@ const section = (n: number, title: string) =>
     bars: false,
   });
 
-const img = (src: string, alt: string, maxHeight?: number) =>
+// Screenshots missing from disk (not captured yet) leave their slot empty.
+const img = (src: string, alt: string, maxHeight?: number) => !hasAsset(src) ? "<div></div>" :
   `<div class="figure"><img src="${asset(src)}" alt="${esc(alt)}"${maxHeight ? ` style="max-height:${maxHeight}mm"` : ""}></div>`;
 
 export async function slidesHtml(r: Report): Promise<string> {
@@ -54,7 +55,7 @@ export async function slidesHtml(r: Report): Promise<string> {
 
     content(
       "The problem",
-      "Millions of log lines, four questions",
+      "Millions of log lines, six questions",
       `<div class="grid-2">
         <div><p>Every visit to a web server writes one line to its access log. We want to know:</p>
           <ul class="clean" style="margin-top:4mm">
@@ -62,6 +63,7 @@ export async function slidesHtml(r: Report): Promise<string> {
             <li>How does traffic vary over the day?</li>
             <li>What share of requests fail (404, 500)?</li>
             <li>Who are the most active visitors?</li>
+            <li>Is anything suspicious, and do both layers agree?</li>
           </ul></div>
         <div class="card"><h3>Dataset</h3>
           <p>NASA Kennedy Space Center web server, July and August 1995, Apache Common Log Format.</p>
@@ -72,43 +74,43 @@ export async function slidesHtml(r: Report): Promise<string> {
 
     section(1, "Architecture"),
 
-    content("Data flow", "From a log line to a report", `<div class="figure" style="margin-top:4mm">${architectureSvg("sequential")}</div>
-      <p class="small">Top row: continuous ingestion. Bottom row: batch analysis. Dashed: the status_codes reference table, imported by Sqoop into HDFS and joined by Hive.</p>`),
+    content("Data flow", "Three branches, two layers", `<div class="figure" style="margin-top:2mm">${architectureSvg().replace("<svg ", '<svg style="max-height:100mm" ')}</div>
+      <p class="small">Top: three ingestion branches start together. Bottom: batch analysis. Dashed: the status_codes reference table, imported by Sqoop into HDFS and joined by Hive.</p>`),
 
     content(
       "Why each tool",
       "The right tool at each step",
       `<div class="grid-3">
-        <div class="card"><h3>Flume</h3><p>Collects logs with ready-made sources and sinks: configuration, no code.</p></div>
-        <div class="card"><h3>Kafka</h3><p>Buffers between collection and storage; the writer resumes from its offset.</p></div>
+        <div class="card"><h3>Flume</h3><p>Collects the raw lines with ready-made sources and sinks: the exact history for the batch layer.</p></div>
+        <div class="card"><h3>Kafka</h3><p>Durable topic of JSON events with two consumers: the HDFS writer and Spark.</p></div>
+        <div class="card"><h3>Spark</h3><p>Speed layer: per-minute traffic and alerts every 5 seconds, without waiting for the batch.</p></div>
         <div class="card"><h3>HDFS</h3><p>Distributed, fault-tolerant storage, one folder per day.</p></div>
         <div class="card"><h3>Hive</h3><p>SQL over HDFS, compiled to MapReduce jobs on YARN.</p></div>
         <div class="card"><h3>Sqoop</h3><p>Bulk transfers MySQL ↔ HDFS, in both directions.</p></div>
-        <div class="card"><h3>Docker</h3><p>One cluster, two architectures, the same cluster on every machine.</p></div>
       </div>`,
     ),
 
-    content("Architecture B", "Three counters, independent deliveries",
-      `<div class="figure">${architectureSvg("parallel").replace("<svg ", '<svg style="max-height:85mm" ')}</div>
-       <p class="small">Flume stores raw lines; Kafka carries structured events; Sqoop imports checked reference data.
-       Separate folders and databases; stable event IDs support logical deduplication after retries.</p>`),
-    content("Comparison", "Same inputs, measured outcomes", comparisonTable(r)),
-    content("Comparison", "What the timings mean", `${comparisonChart(r)}
-      <p>A and B run one after the other on the same DataNode. Delivery and file-closing times are measured separately.</p>
-      <p class="small">A demonstrates one buffered chain. B permits independent collectors, with extra code and reconciliation.
-      B also stores JSON events. Different rollover timers affect closure latency; this is a laptop experiment.</p>`),
+    content("Lambda architecture", "Exact history, answers in seconds",
+      `<div class="grid-2">
+        <div class="card"><h3>Batch layer</h3>
+          <p>Flume's raw lines, analysed by Hive after the run. Exact, but minutes later.</p></div>
+        <div class="card"><h3>Speed layer</h3>
+          <p>Kafka, then Spark every 5 seconds: traffic per minute and alerts while the run goes on. Results go to HDFS (Parquet) and MySQL.</p></div>
+      </div>
+      <p class="small" style="margin-top:5mm">Exactly once: one HDFS folder per micro-batch, and MySQL skips a batch_id it has already applied. At the end of the analysis, the pipeline fails unless Spark's daily totals equal Hive's. Cost: Spark adds about 1 to 2 GB of memory.</p>`),
+
     section(2, "Implementation"),
 
     content(
       "Docker",
-      "One cluster, two architectures",
+      "One cluster, one command",
       `<div class="grid-2" style="grid-template-columns:2fr 3fr">
         <ul class="clean">
-          <li>One image for Hadoop, Hive, Flume and Sqoop, one role per container.</li>
+          <li>One image for Hadoop, Hive, Flume, Sqoop and Spark, one role per container.</li>
           <li>Kafka, ZooKeeper and MySQL from official images.</li>
           <li>Health checks order the start-up; <code>make up</code> waits for them.</li>
         </ul>
-        ${img("assets/screenshots/terminal-status.png", "make status")}
+        ${img("assets/screenshots/cluster-status.png", "make status")}
       </div>`,
     ),
 
@@ -118,11 +120,11 @@ export async function slidesHtml(r: Report): Promise<string> {
       `<div class="grid-2">
         <ul class="clean">
           <li>A replayer appends the 1995 lines as live traffic and saves its position.</li>
-          <li>Flume agent 1 reads each line's request time into the event header.</li>
-          <li>Kafka carries it; agent 2 writes HDFS folders <code>dt=1995-07-01</code>…</li>
+          <li>Flume reads each line's request time and writes HDFS folders <code>dt=1995-07-01</code>…</li>
+          <li>The producer sends JSON events to Kafka; the writer archives them and Spark computes live figures.</li>
           <li>File channels and <code>acks=all</code>: buffered events survive restarts.</li>
         </ul>
-        ${img("assets/screenshots/terminal-topic.png", "Messages in the Kafka topic, with their timestamp header")}
+        ${img("assets/screenshots/kafka-events.png", "Messages in the Kafka topic")}
       </div>`,
     ),
 
@@ -130,14 +132,14 @@ export async function slidesHtml(r: Report): Promise<string> {
       "Proof",
       "Every line reached HDFS",
       `<div class="grid-2">
-        ${img("assets/screenshots/terminal-counts.png", "No-loss check")}
+        ${img("assets/screenshots/no-loss-check.png", "No-loss check")}
         <div><div class="kpis" style="grid-template-columns:1fr 1fr">
             <div class="kpi"><p class="value">${int(r.quality.total)}</p><p class="name">Lines replayed</p></div>
             <div class="kpi"><p class="value">${int(r.quality.total)}</p><p class="name">Lines in HDFS</p></div>
             <div class="kpi"><p class="value">${r.daily.length}</p><p class="name">Days of traffic</p></div>
             <div class="kpi"><p class="value">${int(r.quality.malformed)}</p><p class="name">Malformed, counted</p></div>
           </div>
-          <p class="small" style="margin-top:5mm">Stopping Flume agent 2 lets messages pile up in Kafka; on restart the lag drains to zero.</p></div>
+          <p class="small" style="margin-top:5mm">Pausing the Kafka writer lets messages pile up in Kafka; on resume the lag drains to zero. Spark's daily totals match Hive's.</p></div>
       </div>`,
     ),
 
@@ -193,14 +195,15 @@ export async function slidesHtml(r: Report): Promise<string> {
       </div>`,
     ),
 
-    content("From the web", "Run it and follow it from the browser", img("assets/screenshots/dashboard-run.png", "Live pipeline page during a run", 112)),
+    ...(hasAsset("assets/screenshots/dashboard-live-run.png") ? [content("From the web", "Run it and follow it from the browser", img("assets/screenshots/dashboard-live-run.png", "Live pipeline page during a run", 112))] : []),
+    ...(hasAsset("assets/screenshots/dashboard-realtime.png") ? [content("From the web", "Real-time page: the speed layer", img("assets/screenshots/dashboard-realtime.png", "Real-time page", 112))] : []),
 
     content(
       "From the web",
       "Results and cluster interfaces",
       `<div class="grid-2">
         ${img("assets/screenshots/dashboard-overview.png", "Dashboard overview")}
-        ${img("assets/screenshots/hdfs-browser.png", "HDFS NameNode: one folder per day")}
+        ${img("assets/screenshots/hdfs-raw-zone.png", "HDFS NameNode: one folder per day")}
       </div>`,
     ),
 
@@ -214,7 +217,7 @@ export async function slidesHtml(r: Report): Promise<string> {
         <tr><td>August replayed before July</td><td>Input files sorted in calendar order</td></tr>
         <tr><td>Sqoop mapped MySQL columns alphabetically</td><td>Explicit column lists for every transfer</td></tr>
       </table>
-      <p class="small">Scope: a single-node cluster, by design. The same configuration scales to more DataNodes and brokers.</p>`,
+      <p class="small">Scope: a single-node cluster, by design. The same configuration scales to more DataNodes, brokers and a Spark cluster.</p>`,
     ),
 
     slide(

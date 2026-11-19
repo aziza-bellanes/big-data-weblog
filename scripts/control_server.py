@@ -10,15 +10,15 @@ client, and the project mounted. It exposes a small JSON API on the compose netw
     POST /jobs        {"action": …, "arch": …}   start a job
     GET  /jobs/<id>/log?after=<seq>  log lines newer than <seq>
     POST /jobs/<id>/cancel           stop a running job
-    GET  /runs                       recent run and comparison records
+    GET  /runs                       recent run records
     GET  /runs/<id>                  one record, with its progress samples
 
 A job is an ordered list of steps. Most steps run one of the project's own scripts, the
-same ones the Makefile runs; the ingestion and comparison steps also measure the run
-(scripts/runs.py) and every replay, pipeline and comparison leaves a record in /data/runs.
+same ones the Makefile runs; the ingestion step also measures the run
+(scripts/runs.py) and every replay and pipeline leaves a record in /data/runs.
 
-Jobs of the two architectures never block each other; within one architecture, a job
-waits for nothing but is refused (409) while another job uses the same resource.
+A job waits for nothing: it is refused (409) while another job uses the same resource.
+The three ingestion branches (Flume, Kafka, Sqoop) are separate resources.
 """
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 import architectures
+import cluster_ready
 import runs
 
 PROJECT = Path(os.environ.get("PROJECT_HOME", "/opt/project"))
@@ -87,12 +88,15 @@ class Step:
         """The equivalent make command (or what is measured), echoed at the top of the step's log."""
         if not self.command:
             return f"# {self.label}"
-        return f"make {self.key}" + (f" ARCH={self.arch}" if self.arch else "")
+        return f"make {self.key}"
 
 
 HIVE_FILES = {
-    "sequential": ["hive/01_create_tables.sql"],
-    "parallel": ["hive/01_create_tables.sql", "hive/03_kafka_events.sql"],
+    "parallel": ["hive/01_create_tables.sql", "hive/03_kafka_events.sql", "hive/04_speed_layer.sql"],
+}
+# B's analysis ends by checking the speed layer (Kafka -> Spark) against the batch results.
+ANALYSIS_FILES = {
+    "parallel": ["hive/02_analysis.sql", "hive/05_speed_check.sql"],
 }
 BATCH_KEYS = ("hive-tables", "sqoop-import", "hive-analysis", "sqoop-export")
 
@@ -106,7 +110,7 @@ def batch_step(key: str, arch: str) -> Step:
     commands = {
         "hive-tables": ("Create Hive tables", hive + [_script(f) for f in HIVE_FILES[arch]]),
         "sqoop-import": ("Sqoop import of status_codes", ["bash", _script("sqoop/import_status_codes.sh")]),
-        "hive-analysis": ("Hive analysis", hive + [_script("hive/02_analysis.sql")]),
+        "hive-analysis": ("Hive analysis", hive + [_script(f) for f in ANALYSIS_FILES[arch]]),
         "sqoop-export": ("Sqoop export to MySQL", ["bash", _script("sqoop/export_results.sh")]),
         "counts": ("No-loss check", ["bash", _script("scripts/check-counts.sh")]),
         "verify-ingestion": ("Check every branch against its source",
@@ -118,9 +122,7 @@ def batch_step(key: str, arch: str) -> Step:
 
 
 def replay_command(arch: str) -> list[str]:
-    """A replays into its live log; B starts its three branches (Flume, Kafka, Sqoop) at once."""
-    if arch == "sequential":
-        return ["bash", _script("docker/bigdata/roles/replayer.sh")]
+    """Start the three ingestion branches (Flume, Kafka, Sqoop) at once."""
     return ["python3", _script("scripts/parallel_ingestion.py")]
 
 
@@ -142,29 +144,15 @@ def branch_step(key: str, rate: int, limit: int) -> Step:
     return script_step(key, "parallel", label, command, REPLAY_RATE=str(rate), REPLAY_LIMIT=str(limit))
 
 
-# Batch part of each architecture. In B the Sqoop import is one of the three ingestion
-# branches, so its batch part checks the branches against their sources instead.
+# Batch part. The Sqoop import is one of the three ingestion branches, so the batch part
+# checks the branches against their sources instead.
 PIPELINES = {
-    "sequential": ("hive-tables", "sqoop-import", "hive-analysis", "sqoop-export"),
     "parallel": ("hive-tables", "verify-ingestion", "hive-analysis", "sqoop-export"),
 }
 
 
 def pipeline_steps(arch: str) -> list[Step]:
     return [batch_step(key, arch) for key in PIPELINES[arch]]
-
-
-def fingerprint_step(arch: str) -> Step:
-    return Step("fingerprint", "Fingerprint the MySQL results", arch=arch, run=run_fingerprint)
-
-
-def compare_steps(rate: int, limit: int, fresh: bool) -> list[Step]:
-    """A then B on the same lines at the same rate, each measured from replay to MySQL."""
-    steps = [batch_step("reset", arch) for arch in ARCHS] if fresh else []
-    for arch in ("sequential", "parallel"):
-        steps += [ingest_step(arch, rate, limit), batch_step("counts", arch),
-                  *pipeline_steps(arch), fingerprint_step(arch)]
-    return steps + [Step("compare", "Compare the two runs", run=run_comparison)]
 
 
 def replay_running(arch: str) -> bool:
@@ -236,7 +224,7 @@ class Job:
 
     def record(self) -> dict:
         """What is saved in /data/runs once the job ends."""
-        record = {"id": self.id, "kind": "comparison" if self.action == "compare" else "run",
+        record = {"id": self.id, "kind": "run",
                   "action": self.action, "arch": self.arch, "params": self.params,
                   "status": self.status, "createdAt": _ms(self.created_at),
                   "endedAt": _ms(self.ended_at), "architectures": {}}
@@ -249,8 +237,6 @@ class Job:
             batch = [s.seconds for s in states if s.step.key in BATCH_KEYS + ("verify-ingestion",)]
             entry["batchSeconds"] = round(sum(b for b in batch if b), 1) if any(batch) else None
             record["architectures"][arch] = entry
-        if "comparison" in self.results:
-            record["comparison"] = self.results["comparison"]
         return record
 
 
@@ -317,39 +303,17 @@ def run_ingestion(job: Job, step: Step) -> int:
     return 0
 
 
-def run_fingerprint(job: Job, step: Step) -> int:
-    database = architectures.get(step.arch)["mysqlDb"]
-    fingerprints = runs.result_fingerprints(database)
-    job.arch_results(step.arch)["results"] = fingerprints
-    for table, value in fingerprints.items():
-        job.append(f"{database}.{table}: {value['rows']} rows, sha256 {value['sha256'][:12]}")
-    return 0
-
-
-def run_comparison(job: Job, _step: Step) -> int:
-    a, b = (job.arch_results(arch) for arch in ("sequential", "parallel"))
-    match = runs.results_match(a.get("results", {}), b.get("results", {}))
-    job.results["comparison"] = {"resultsMatch": match, "allResultsMatch": all(match.values())}
-    for table, same in match.items():
-        job.append(f"{table:<20} {'identical' if same else 'DIFFERENT'}")
-    return 0 if all(match.values()) else 1
-
-
 # ---- Runner ----------------------------------------------------------------------------------
 
 class Conflict(Exception):
     pass
 
 
-# Resources each job holds while it runs. A and B share none, so they never block each other.
+# Resources each job holds while it runs.
 BRANCHES = {"ingest-flume": "par-flume", "ingest-kafka": "par-kafka", "ingest-sqoop": "par-sqoop"}
 
 
 def resources(action: str, arch: str | None) -> set[str]:
-    if action == "compare":
-        return {"seq-ingest", "seq-batch", "par-flume", "par-kafka", "par-sqoop", "par-batch"}
-    if arch == "sequential":
-        return {"replay": {"seq-ingest"}, "reset": {"seq-ingest", "seq-batch"}}.get(action, {"seq-batch"})
     if action in BRANCHES:
         return {BRANCHES[action]}
     if action == "replay":
@@ -361,8 +325,8 @@ def resources(action: str, arch: str | None) -> set[str]:
     return {"par-batch"}
 
 
-INGESTING = {"replay", "reset", "compare", *BRANCHES}
-RECORDED = {"replay", "pipeline", "compare"}
+INGESTING = {"replay", "reset", *BRANCHES}
+RECORDED = {"replay", "pipeline"}
 
 
 class Runner:
@@ -383,11 +347,9 @@ class Runner:
         with self._lock:
             busy = [job for job in self.active.values() if wanted & resources(job.action, job.arch)]
             if busy:
-                raise Conflict(f"'{busy[0].action}' is still running for the same architecture")
-            if action in INGESTING:
-                for name in (ARCHS if action == "compare" else (arch,)):
-                    if replay_running(name):
-                        raise Conflict(f"a replay started outside the dashboard is running for {name}")
+                raise Conflict(f"'{busy[0].action}' is still running")
+            if action in INGESTING and replay_running(arch):
+                raise Conflict("a replay started outside the dashboard is running")
             job = Job(action, arch, [StepState(s) for s in steps], params or {})
             self.active[job.id] = job
         threading.Thread(target=self._run, args=(job,), daemon=True).start()
@@ -457,17 +419,12 @@ def plan(body: dict) -> tuple[str, str | None, list[Step], dict]:
     rate, limit = body.get("rate", 5000), body.get("limit", 0)
     if not isinstance(action, str) or not isinstance(arch, str):
         raise BadRequest("action and arch must be strings")
-    if action == "compare":
-        arch = None
-    elif arch not in ARCHS:
+    if arch not in ARCHS:
         raise BadRequest(f"arch must be one of {', '.join(ARCHS)}")
-    if action in ("replay", "compare", *BRANCHES):
+    if action in ("replay", *BRANCHES):
         integers = all(isinstance(v, int) and not isinstance(v, bool) for v in (rate, limit))
         if not integers or rate not in RATES or limit < 0:
             raise BadRequest(f"rate must be one of {sorted(RATES)}, limit an integer >= 0")
-    if action == "compare":
-        fresh = body.get("fresh", True) is True
-        return action, None, compare_steps(rate, limit, fresh), {"rate": rate, "limit": limit, "fresh": fresh}
     if action == "replay":
         return action, arch, [ingest_step(arch, rate, limit)], {"rate": rate, "limit": limit}
     if action == "pipeline":
@@ -475,8 +432,6 @@ def plan(body: dict) -> tuple[str, str | None, list[Step], dict]:
     if action in SINGLE:
         return action, arch, [batch_step(action, arch)], {}
     if action in BRANCHES or action == "verify-ingestion":
-        if arch != "parallel":
-            raise BadRequest(f"{action} belongs to architecture B (parallel)")
         step = branch_step(action, rate, limit) if action in BRANCHES else batch_step(action, arch)
         return action, arch, [step], {"rate": rate, "limit": limit} if action in BRANCHES else {}
     raise BadRequest(f"unknown action {action!r}")
@@ -528,6 +483,7 @@ class Handler(BaseHTTPRequestHandler):
                     "defaultArch": architectures.DEFAULT,
                     "replayRunning": {arch: replay_running(arch) for arch in ARCHS},
                 }
+            payload["readiness"] = cluster_ready.check()
             return self._json(200, payload)
         if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "log":
             job = RUNNER.find(parts[1])
@@ -571,7 +527,18 @@ class Handler(BaseHTTPRequestHandler):
         except BadRequest as error:
             return self._json(400, {"error": str(error)})
         try:
+            if action not in ("counts", "verify-ingestion"):
+                readiness = cluster_ready.require_ready(require_yarn=action != "reset")
+                if action == "replay":
+                    lines = params.get("limit") or DATASET.total_lines
+                    if lines is None:
+                        raise cluster_ready.ClusterNotReady("The dataset is still being counted; try again shortly.")
+                    # Raw lines, JSON events and the speed layer's Parquet, per line.
+                    cost = 1100
+                    cluster_ready.require_space(readiness, lines, cost)
             job = RUNNER.start(action, arch, steps, params)
+        except cluster_ready.ClusterNotReady as error:
+            return self._json(503, {"error": str(error)})
         except Conflict as error:
             return self._json(409, {"error": str(error)})
         self._json(202, job.to_json())

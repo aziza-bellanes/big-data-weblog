@@ -8,8 +8,8 @@ import type { Connector, Direction, Flow, Stage } from "./stages";
 import { StateDot } from "./state-dot";
 
 /**
- * The live diagram of one architecture. Each item carries its own place on the wide-screen grid
- * (stages.ts): A is a "snake" like the report's diagram, B three branches merging into HDFS.
+ * The live diagram of the pipeline. Each item carries its own place on the wide-screen grid
+ * (stages.ts): three branches merging into HDFS, then the batch part.
  * Below xl, everything stacks in reading order.
  */
 export function FlowDiagram({ flow }: { flow: Flow }) {
@@ -95,7 +95,12 @@ function FlowNode({ stage, className }: { stage: Stage; className?: string }) {
       )}
 
       {stage.details.length > 0 && (
-        <dl className="mt-auto flex gap-5 border-t pt-3 text-[0.7rem]">
+        <dl
+          className={cn(
+            "mt-auto border-t pt-3 text-[0.7rem]",
+            stage.details.length > 2 ? "grid grid-cols-2 gap-x-5 gap-y-2" : "flex gap-5",
+          )}
+        >
           {stage.details.map((detail) => (
             <div key={detail.label} className="min-w-0">
               <dt className="text-muted-foreground">{detail.label}</dt>

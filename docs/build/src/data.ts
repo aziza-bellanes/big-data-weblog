@@ -15,7 +15,6 @@ export interface Meta {
 }
 
 export interface Report {
-  comparison: Comparison;
   recovery: Recovery[];
   meta: Meta;
   topPages: { path: string; hits: number }[];
@@ -41,34 +40,13 @@ async function loadRecovery(): Promise<Recovery[]> {
     return Promise.all(names.map(async (name) => JSON.parse(await readFile(`${directory}/${name}`, "utf8")) as Recovery));
   }));
   const records = groups.flat();
-  return ["sequential-writer-outage", "kafka-writer-outage"].map((scenario) => {
+  return ["kafka-writer-outage"].map((scenario) => {
     const record = records.filter((r) => r.scenario === scenario).sort((a, b) => b.run_id.localeCompare(a.run_id))[0];
     if (!record || record.status !== "PASS" || !Object.values(record.checks).every(Boolean)) {
       throw new Error(`missing successful recovery evidence: ${scenario}`);
     }
     return record;
   });
-}
-
-export interface Comparison {
-  id: string;
-  architectures: Record<"sequential" | "parallel", {
-    ingestion: { lines: number; allWrittenSeconds: number; allClosedSeconds: number;
-      linesPerSecond: number; peakKafkaLag: number; raw: { files: number; avgFileBytes: number } };
-    batchSeconds: number;
-  }>;
-  comparison: { allResultsMatch: boolean; resultsMatch: Record<string, boolean> };
-}
-
-async function loadComparison(): Promise<Comparison> {
-  const api = process.env.CONTROL_URL ?? "http://client:8000";
-  const response = await fetch(`${api}/runs`);
-  if (!response.ok) throw new Error(`cannot load comparison: HTTP ${response.status}`);
-  const { runs } = await response.json();
-  const record = runs.find((r: { kind: string; status: string; params?: { limit: number }; comparison?: { allResultsMatch: boolean } }) =>
-    r.kind === "comparison" && r.status === "succeeded" && r.params?.limit === 0 && r.comparison?.allResultsMatch);
-  if (!record) throw new Error("no successful full comparison: run make compare RATE=5000 LIMIT=0 first");
-  return record as Comparison;
 }
 
 const DOCS_DIR = fileURLToPath(new URL("../../", import.meta.url));
@@ -78,7 +56,7 @@ const MYSQL = {
   port: Number(process.env.MYSQL_HOST_PORT ?? 3307),
   user: "sqoop",
   password: "sqoop",
-  database: "weblogs",
+  database: "weblogs_parallel",
   decimalNumbers: true,
   supportBigNumbers: true,
   dateStrings: true,
@@ -87,7 +65,7 @@ const MYSQL = {
 const HDFS_URL = process.env.HDFS_HTTP_URL ?? "http://127.0.0.1:9870";
 
 async function loadHdfs(): Promise<Report["hdfs"]> {
-  const op = (name: string) => `${HDFS_URL}/webhdfs/v1/data/weblogs?op=${name}&user.name=hadoop`;
+  const op = (name: string) => `${HDFS_URL}/webhdfs/v1/data/nasa/raw/flume?op=${name}&user.name=hadoop`;
   const [list, summary] = await Promise.all([
     fetch(op("LISTSTATUS")).then((r) => r.json()),
     fetch(op("GETCONTENTSUMMARY")).then((r) => r.json()),
@@ -123,12 +101,8 @@ export async function loadReport(): Promise<Report> {
       loadHdfs(),
     ]);
     if (!quality[0]) throw new Error("data_quality is empty: run `make pipeline` first");
-    const comparison = await loadComparison();
-    if (Object.values(comparison.architectures).some((a) => a.ingestion.lines !== quality[0].total)) {
-      throw new Error("live result count differs from the full comparison; rerun the full pipeline");
-    }
     const recovery = await loadRecovery();
-    return { comparison, recovery, meta, topPages, hourly, daily, statuses, topHosts, quality: quality[0], hdfs };
+    return { recovery, meta, topPages, hourly, daily, statuses, topHosts, quality: quality[0], hdfs };
   } finally {
     await db.end();
   }
